@@ -258,3 +258,18 @@ BasicLearning:
     max_steps: 5.0e5
     summary_freq: 2000
     time_horizon: 3
+
+VehicleLearning:
+    normalize: false
+    batch_size: 2560
+    buffer_size: 25600
+    summary_freq: 1000
+    time_horizon: 500
+    sequence_length: 64
+    learning_rate: 3.0e-3
+    lambd: 0.99
+    gamma: 0.995
+    beta: 0.010
+    use_recurrent: false
+    use_curiosity: true
+    max_steps: 5.0e6
