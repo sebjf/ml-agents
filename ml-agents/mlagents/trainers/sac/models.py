@@ -616,7 +616,7 @@ class SACModel(LearningModel):
 
         if discrete:
             self.target_entropy = [
-                0.1 * np.log(i).astype(np.float32) for i in self.act_size
+                0.5 * np.log(i).astype(np.float32) for i in self.act_size
             ]
         else:
             self.target_entropy = -np.prod(self.act_size[0]).astype(np.float32)

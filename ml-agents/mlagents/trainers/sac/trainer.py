@@ -81,7 +81,7 @@ class SACTrainer(Trainer):
 
         self.training_buffer = Buffer()
         self.n_step_queues = defaultdict(lambda: deque(maxlen=3))
-        self.n_step_queue = deque(maxlen=3)
+        self.n_step_queue = deque(maxlen=trainer_parameters['n_step'])
         self.episode_steps = {}
 
     @property
