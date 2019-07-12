@@ -249,12 +249,16 @@ class SACTrainer(Trainer):
 
         self.n_step_queue.append({"curr_info":curr_info, "next_info":next_info, "take_action_outputs":take_action_outputs})
 
-        for agent_id in next_info.agents:
+        for agent_id in self.n_step_queue[0]["next_info"].agents:
             # Grab the first one in the queue
             stored_info = self.n_step_queue[0]["curr_info"]
-            # Find the next info that is Done. If found, use this one as the next.
+
+            # Find the next info that is Done, or doesn't contain our Agent. If found, use this one as the next.
             done_idx = 0
             for done_idx, entry in enumerate(self.n_step_queue):
+                if agent_id not in entry["next_info"].agents:
+                    done_idx -= 1
+                    break
                 next_idx = entry["next_info"].agents.index(agent_id)
                 if entry["next_info"].local_done[next_idx]:
                     break
@@ -270,7 +274,7 @@ class SACTrainer(Trainer):
             # Use the chosen next_info as the actual next_info stored in the buffer
             stored_next_info = self.n_step_queue[done_idx]["next_info"]
 
-            if stored_info is not None:
+            if agent_id in stored_info.agents:
                 idx = stored_info.agents.index(agent_id)
                 next_idx = stored_next_info.agents.index(agent_id)
                 assert idx == next_idx
