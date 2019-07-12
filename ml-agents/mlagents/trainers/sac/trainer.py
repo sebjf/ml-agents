@@ -247,32 +247,32 @@ class SACTrainer(Trainer):
         for name, signal in self.policy.reward_signals.items():
             tmp_rewards_dict[name] = signal.evaluate(curr_to_use, next_info)
 
-        self.n_step_queue.append((curr_info, next_info, take_action_outputs))
+        self.n_step_queue.append({"curr_info":curr_info, "next_info":next_info, "take_action_outputs":take_action_outputs})
 
         for agent_id in next_info.agents:
             # Grab the first one in the queue
-            stored_info = self.n_step_queue[0][0]
+            stored_info = self.n_step_queue[0]["curr_info"]
             # Find the next info that is Done. If found, use this one as the next.
             done_idx = 0
-            for done_idx, pair in enumerate(self.n_step_queue):
-                next_idx = next_info.agents.index(agent_id)
-                if pair[1].local_done[next_idx]:
+            for done_idx, entry in enumerate(self.n_step_queue):
+                next_idx = entry["next_info"].agents.index(agent_id)
+                if entry["next_info"].local_done[next_idx]:
                     break
 
             # Discount the rewards up to this point
             sum_reward = 0
-            for i in range(done_idx):
-                next_idx = next_info.agents.index(agent_id)
-                sum_reward += np.power(0.99, i) * np.array(next_info.rewards)[next_idx]
+            for i in range(done_idx+1):
+                next_idx = self.n_step_queue[i]["next_info"].agents.index(agent_id)
+                sum_reward += np.power(0.99, i) * np.array(self.n_step_queue[i]["next_info"].rewards)[next_idx]
 
-            stored_take_action_outputs = self.n_step_queue[0][2]
+            stored_take_action_outputs = self.n_step_queue[0]["take_action_outputs"]
 
             # Use the chosen next_info as the actual next_info stored in the buffer
-            next_info = self.n_step_queue[done_idx][1]
+            stored_next_info = self.n_step_queue[done_idx]["next_info"]
 
             if stored_info is not None:
                 idx = stored_info.agents.index(agent_id)
-                next_idx = next_info.agents.index(agent_id)
+                next_idx = stored_next_info.agents.index(agent_id)
                 assert idx == next_idx
                 if not stored_info.local_done[idx]:
                     for i, _ in enumerate(stored_info.visual_observations):
@@ -280,14 +280,14 @@ class SACTrainer(Trainer):
                             stored_info.visual_observations[i][idx]
                         )
                         self.training_buffer[agent_id]["next_visual_obs%d" % i].append(
-                            next_info.visual_observations[i][next_idx]
+                            stored_next_info.visual_observations[i][next_idx]
                         )
                     if self.policy.use_vec_obs:
                         self.training_buffer[agent_id]["vector_obs"].append(
                             stored_info.vector_observations[idx]
                         )
                         self.training_buffer[agent_id]["next_vector_in"].append(
-                            next_info.vector_observations[next_idx]
+                            stored_next_info.vector_observations[next_idx]
                         )
                     if self.policy.use_recurrent:
                         if stored_info.memories.shape[1] == 0:
@@ -297,7 +297,7 @@ class SACTrainer(Trainer):
                         self.training_buffer[agent_id]["memory"].append(
                             stored_info.memories[idx]
                         )
-                    actions = next_info.previous_vector_actions[next_idx]
+                    actions = stored_next_info.previous_vector_actions[next_idx]
                     if self.policy.use_continuous_act:
                         pass
                         # actions_pre = stored_take_action_outputs["pre_action"]
@@ -322,10 +322,10 @@ class SACTrainer(Trainer):
                     )
                     self.training_buffer[agent_id]["masks"].append(1.0)
                     self.training_buffer[agent_id]["done"].append(
-                        next_info.local_done[idx]
+                        stored_next_info.local_done[idx]
                     )
                     self.training_buffer[agent_id]["environment_rewards"].append(
-                        np.array(next_info.rewards)[next_idx]
+                        sum_reward
                     )
                     # for name, reward in tmp_rewards_dict.items():
                     #     # 0 because we use the scaled reward to train the agent
