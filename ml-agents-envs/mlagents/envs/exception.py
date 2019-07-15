@@ -19,6 +19,14 @@ class UnityEnvironmentException(UnityException):
     pass
 
 
+class UnityEnvironmentWorkerException(UnityEnvironmentException):
+    """
+    Related to environment workers failing in an unknown way.
+    """
+
+    pass
+
+
 class UnityActionException(UnityException):
     """
     Related to errors with sending actions.

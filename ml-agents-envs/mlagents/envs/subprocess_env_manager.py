@@ -8,6 +8,7 @@ from mlagents.envs.base_unity_environment import BaseUnityEnvironment
 from mlagents.envs.env_manager import EnvManager, StepInfo
 from mlagents.envs.timers import timed, hierarchical_timer
 from mlagents.envs import AllBrainInfo, BrainParameters, ActionInfo
+from mlagents.envs.exception import UnityEnvironmentWorkerException
 
 
 class EnvironmentCommand(NamedTuple):
@@ -33,15 +34,15 @@ class UnityEnvWorker:
         try:
             cmd = EnvironmentCommand(name, payload)
             self.conn.send(cmd)
-        except (BrokenPipeError, EOFError):
-            raise KeyboardInterrupt
+        except (BrokenPipeError, EOFError, KeyboardInterrupt):
+            raise UnityEnvironmentWorkerException
 
     def recv(self) -> EnvironmentResponse:
         try:
             response: EnvironmentResponse = self.conn.recv()
             return response
-        except (BrokenPipeError, EOFError):
-            raise KeyboardInterrupt
+        except (BrokenPipeError, EOFError, KeyboardInterrupt):
+            raise UnityEnvironmentWorkerException
 
     def close(self):
         try:

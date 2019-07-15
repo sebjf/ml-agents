@@ -289,7 +289,7 @@ class TrainerController(object):
             # Final save Tensorflow model
             if global_step != 0 and self.train_model:
                 self._save_model(steps=global_step)
-        except KeyboardInterrupt:
+        except (UnityEnvironmentException, KeyboardInterrupt):
             if self.train_model:
                 self._save_model_when_interrupted(steps=global_step)
             pass
