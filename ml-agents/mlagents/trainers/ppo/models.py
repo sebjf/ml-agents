@@ -49,6 +49,7 @@ class PPOModel(nn.Module):
         self.visual_in = []
         self.use_recurrent = use_recurrent
         self.m_size = m_size if self.use_recurrent else 0
+        self.use_continuous = brain.vector_action_space_type == "continuous"
         self.normalize = normalize
         if num_layers < 1:
             num_layers = 1
@@ -64,7 +65,7 @@ class PPOModel(nn.Module):
         self.max_step = max_step
 
         self.stream_names = stream_names or []
-        if brain.vector_action_space_type == "continuous":
+        if self.use_continuous:
             self.ac = CCActorCritic(h_size, num_layers, stream_names, brain)
         else:
             self.ac = DCActorCritic(h_size, num_layers, stream_names, brain)
@@ -86,7 +87,8 @@ class PPOModel(nn.Module):
         run_out = {}
         run_out["random_normal_epsilon"] = epsilon_np
         run_out["action"] = output.data.numpy()
-        run_out["pre_action"] = output_pre.data.numpy()
+        if self.use_continuous:
+            run_out["pre_action"] = output_pre.data.numpy()
         run_out["log_probs"] = all_log_probs.data.numpy()
         run_out["value"] = {key:value_heads[key].data.numpy() for key in value_heads}
         run_out["entropy"] = entropy.data.numpy()
@@ -125,9 +127,8 @@ class PPOModel(nn.Module):
         # Here we calculate PPO policy loss. In continuous control this is done independently for each action gaussian
         # and then averaged together. This provides significantly better performance than treating the probability
         # as an average of probabilities, or as a joint probability.
-        log_probs = torch.sum(log_probs, 1, keepdim=True)
-        old_log_probs = torch.sum(old_log_probs, 1, keepdim=True)
-
+        log_probs, old_log_probs = self.ac.get_probs(log_probs, old_log_probs, \
+            input_dict.get("actions", None), input_dict.get("action_mask", None))
         r_theta = torch.exp(log_probs - old_log_probs)
         p_opt_a = r_theta * advantages
         p_opt_b = torch.clamp(r_theta, 1.0 - decay_epsilon, 1.0 + decay_epsilon) * advantages

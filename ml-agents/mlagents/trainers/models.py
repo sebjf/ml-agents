@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 logger = logging.getLogger("mlagents.trainers")
@@ -22,9 +23,15 @@ class VisualEncoder(nn.Module):
             nn.Conv2d(16, 32, kernel_size=(4, 4), stride=(2, 2)),
             nn.ELU()
         )
-        self.vector_encoder = VectorEncoder(32*o_size_h*o_size_w, h_size, num_layers)
+        conv_h = int((o_size_h - (8 - 1)) / 4 + 1)
+        conv_h = int((conv_h - (4 - 1)) / 2 + 1)
+        conv_w = int((o_size_w - (8 - 1)) / 4 + 1)
+        conv_w = int((conv_w - (4 - 1)) / 2 + 1)
+        self.vector_encoder = VectorEncoder(32*conv_h*conv_w, h_size, num_layers)
 
     def forward(self, image_input):
+        # transpose (tf: [batch, h, w, c], torch: [batch, c, h, w])
+        image_input = image_input.transpose(2, 3).transpose(1, 2)
         hidden = self.model(image_input)
         hidden = hidden.flatten(start_dim=1)
         return self.vector_encoder(hidden)
@@ -71,7 +78,8 @@ class ObservationEncoder(nn.Module):
         for i in range(self.num_vis_obs):
             self.visual_encoders.append(VisualEncoder(
                 brain.camera_resolutions[i], h_size, num_layers))
-        self.vector_encoder = VectorEncoder(self.vector_obs_size, h_size, num_layers)
+        if self.vector_obs_size > 0:
+            self.vector_encoder = VectorEncoder(self.vector_obs_size, h_size, num_layers)
 
         self.obs_size = self.num_vis_obs * h_size
         if self.vector_obs_size > 0:
@@ -81,9 +89,8 @@ class ObservationEncoder(nn.Module):
         hidden_state, hidden_visual = None, None
         if self.num_vis_obs > 0:
             encoded_visuals = []
-            for i in range(self.num_vis_obs):
-                encoded_visual = self.visual_encoder[i](visual_in[i])
-                encoded_visuals.append(encoded_visual)
+            for vis_encoder, vis_in in zip(self.visual_encoders, visual_in):
+                encoded_visuals.append(vis_encoder(vis_in))
             hidden_visual = torch.cat(encoded_visuals, 1)
         if self.vector_obs_size > 0:
             hidden_state = self.vector_encoder(vector_in)
@@ -105,6 +112,7 @@ class CCActorCritic(nn.Module):
     def __init__(self, h_size, num_layers, stream_names, brain):
         super().__init__()
         self.act_size = brain.vector_action_space_size
+        self.num_vis_obs = brain.number_visual_observations
         self.policy_observation_encoder = ObservationEncoder(h_size, num_layers, brain)
         self.value_observation_encoder = ObservationEncoder(h_size, num_layers, brain)
 
@@ -131,7 +139,7 @@ class CCActorCritic(nn.Module):
         return value_heads
 
     def forward(self, input_dict):
-        visual_in = input_dict.get("visual_obs", None)
+        visual_in = [input_dict.get("visual_obs%d" % i, None) for i in range(self.num_vis_obs)]
         vector_in = input_dict.get("vector_obs", None)
         output_pre = input_dict.get("actions_pre", None)
         epsilon = input_dict["random_normal_epsilon"]
@@ -165,7 +173,105 @@ class CCActorCritic(nn.Module):
 
         return output, output_pre, all_log_probs, value_heads, value, entropy
 
+    def get_probs(self, all_log_probs, all_old_log_probs, actions=None, action_masks=None):
+        log_probs = torch.sum(log_probs, 1, keepdim=True)
+        old_log_probs = torch.sum(old_log_probs, 1, keepdim=True)
+        return log_probs, old_log_probs
+
+
 class DCActorCritic(nn.Module):
-    def __init__(self, h_size, num_layers, brain):
+    def __init__(self, h_size, num_layers, stream_names, brain):
         super().__init__()
-        raise Exception("DCActorCritic to be implemented")
+        self.act_size = brain.vector_action_space_size
+        self.num_vis_obs = brain.number_visual_observations
+        self.observation_encoder = ObservationEncoder(h_size, num_layers, brain)
+        self.policy_layers = nn.ModuleList()
+        for size in self.act_size:
+            self.policy_layers.append(torch.nn.Linear(self.observation_encoder.obs_size, size, bias=False))
+        self.num_branch = len(self.act_size)
+        self.stream_names = stream_names
+        self.value_layers = {}
+        for name in self.stream_names:
+            self.value_layers[name] = torch.nn.Linear(self.observation_encoder.obs_size, 1)
+        self.criterion = torch.nn.CrossEntropyLoss(reduction='none')
+        self._init_weights()
+
+    def _init_weights(self):
+        for layer in self.policy_layers:
+            nn.init.kaiming_normal_(layer.weight, a=10)
+
+    def get_value_estimate(self, visual_in, vector_in):
+        value_heads = {}
+        hidden = self.observation_encoder(visual_in, vector_in)
+        for name in self.stream_names:
+            value = self.value_layers[name](hidden)
+            value_heads[name] = value.data.numpy()
+        return value_heads
+
+    def forward(self, input_dict):
+        visual_in = [input_dict.get("visual_obs%d" % i, None) for i in range(self.num_vis_obs)]
+        vector_in = input_dict.get("vector_obs", None)
+        action_mask = input_dict["action_mask"]
+
+        hidden = self.observation_encoder(visual_in, vector_in)
+        action_idx = [0] + list(np.cumsum(self.act_size))
+
+        all_log_probs = [layer(hidden) for layer in self.policy_layers]
+
+        branch_masks = [
+            action_mask[:, action_idx[i] : action_idx[i + 1]] for i in range(self.num_branch)
+        ]
+        raw_probs = [
+            (F.softmax(all_log_probs[k], 1) + 1.0e-10) * branch_masks[k] for k in range(self.num_branch)
+        ]
+        output = torch.cat(
+            [torch.multinomial(raw_probs[k], 1) for k in range(self.num_branch)], 1
+        )
+
+        value_heads = {}
+        for name in self.stream_names:
+            value = self.value_layers[name](hidden)
+            value_heads[name] = value
+        value = torch.mean(torch.stack(list(value_heads.values())))
+
+        entropy = [torch.sum(-F.softmax(x, 1) * F.log_softmax(x, 1), 1) for x in all_log_probs]
+        entropy = torch.stack(entropy, 1).sum(1)
+
+        return output, None, torch.cat(all_log_probs, 1), value_heads, value, entropy
+
+    def get_probs(self, all_log_probs, all_old_log_probs, actions, action_masks):
+        action_idx = [0] + list(np.cumsum(self.act_size))
+        branch_masks = [
+            action_masks[:, action_idx[i] : action_idx[i + 1]] for i in range(self.num_branch)
+        ]
+
+        all_log_probs = [
+            all_log_probs[:, action_idx[i] : action_idx[i + 1]]
+            for i in range(self.num_branch)
+        ]
+        raw_probs = [
+            (F.softmax(all_log_probs[k], 1) + 1.0e-10) * branch_masks[k] for k in range(self.num_branch)
+        ]
+        normalized_probs = [raw_probs[k]/torch.sum(raw_probs[k], 1, keepdim=True) for k in range(self.num_branch)]
+        normalized_logits = [torch.log(normalized_probs[k] + 1.0e-10) for k in range(self.num_branch)]
+
+        all_old_log_probs = [
+            all_old_log_probs[:, action_idx[i] : action_idx[i + 1]]
+            for i in range(self.num_branch)
+        ]
+        old_raw_probs = [
+            (F.softmax(all_old_log_probs[k], 1) + 1.0e-10) * branch_masks[k] for k in range(self.num_branch)
+        ]
+        old_normalized_probs = [old_raw_probs[k]/torch.sum(old_raw_probs[k], 1, keepdim=True) for k in range(self.num_branch)]
+        old_normalized_logits = [torch.log(old_normalized_probs[k] + 1.0e-10) for k in range(self.num_branch)]
+
+        actions = [actions[:, i] for i in range(self.num_branch)]
+        log_probs = torch.sum(
+            torch.stack([-self.criterion(normalized_logits[k], actions[k])
+                for k in range(self.num_branch)], dim=1), 1, keepdim=True
+        )
+        old_log_probs = torch.sum(
+            torch.stack([-self.criterion(old_normalized_logits[k], actions[k])
+                for k in range(self.num_branch)], dim=1), 1, keepdim=True
+        )
+        return log_probs, old_log_probs

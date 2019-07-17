@@ -59,8 +59,9 @@ class PPOPolicy(Policy):
         :return: Outputs from network as defined by self.inference_dict.
         """
         feed_dict = {}
-        feed_dict["action_masks"] = Variable(torch.ByteTensor(brain_info.action_masks))
-        feed_dict["visual_obs"] = Variable(torch.Tensor(brain_info.visual_observations))
+        feed_dict["action_mask"] = Variable(torch.Tensor(brain_info.action_masks))
+        for i in range(len(brain_info.visual_observations)):
+            feed_dict["visual_obs%d" % i] = Variable(torch.Tensor(brain_info.visual_observations[i]))
         feed_dict["vector_obs"] = Variable(torch.Tensor(brain_info.vector_observations))
         # if self.use_recurrent:
         #     to be implement
@@ -80,6 +81,8 @@ class PPOPolicy(Policy):
         for key in mini_batch:
             if key == "masks":
                 mini_batch[key] = Variable(torch.ByteTensor(mini_batch[key]))
+            elif key == "actions":
+                mini_batch[key] = Variable(torch.LongTensor(mini_batch[key]))
             else:
                 mini_batch[key] = Variable(torch.Tensor(mini_batch[key]))
         # if self.use_recurrent:
@@ -99,9 +102,9 @@ class PPOPolicy(Policy):
         """
         visual_in = [brain_info.visual_observations[i][idx] \
             for i in range(len(brain_info.visual_observations))]
-        visual_in = Variable(torch.Tensor(visual_in))
-        vector_in = [brain_info.vector_observations[idx]] if self.use_vec_obs else None
-        vector_in = Variable(torch.Tensor(vector_in))
+        visual_in = Variable(torch.Tensor([visual_in]))
+        vector_in = [brain_info.vector_observations[idx]]
+        vector_in = Variable(torch.Tensor(vector_in)) if self.use_vec_obs else None
         # if self.use_recurrent:
         #     to be implement
 
