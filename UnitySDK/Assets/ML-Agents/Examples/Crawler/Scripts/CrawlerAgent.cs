@@ -73,6 +73,7 @@ public class CrawlerAgent : Agent
         upper_legs = new Transform[4] { leg0Upper, leg1Upper, leg2Upper, leg3Upper };
         lower_legs = new Transform[4] { leg0Lower, leg1Lower, leg2Lower, leg3Lower };
 
+
         var academy = Object.FindObjectOfType<Academy>() as Academy;
         resetParams = academy.resetParameters;
 
@@ -296,17 +297,34 @@ public class CrawlerAgent : Agent
 
     public void SetUpperLegSize()
     {
-
         foreach (var bp in upper_legs)
         {
+            // var children = new Transform[bp.transform.childCount];
+            // int i = 0;
+            // foreach (Transform T in bp.transform)
+            //     children[i++] = T;
+
+            // bp.transform.DetachChildren();
+            Rigidbody bpRb = bp.GetComponent<Rigidbody>();
+            bpRb.isKinematic = true;
+            float startingHeight = bp.localScale.y;
             bp.localScale = new Vector3(bp.localScale.x, resetParams["upperlegScale"], bp.localScale.z);
+            var changeY = (bp.localScale.y - startingHeight)/2;
+            // bp.localPosition = new Vector3(bp.localPosition.x, bp.localPosition.y - changeY, bp.localPosition.z);
+
+            bp.localPosition = new Vector3(bp.localPosition.x, -5, bp.localPosition.z);
+            bpRb.isKinematic = false;
+            // foreach (Transform T in children)              // Re-Attach
+            //     T.parent = bp.transform;
+
+            // bp.localPosition = bp.gameObject.transform.Find("upperJoint").transform.localPosition;
         }
 
     }
 
     public void SetLegSizes()
     {
-        SetForeLegSize();
+        // SetForeLegSize();
         SetUpperLegSize();
     }
 
@@ -323,6 +341,6 @@ public class CrawlerAgent : Agent
     public void SetResetParameters()
     {
         SetLegSizes();
-        SetAgentStartingHeight();
+        // SetAgentStartingHeight();
     }
 }
