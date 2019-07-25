@@ -13,6 +13,7 @@ namespace MLAgents
         [Header("Body Part Info")] [Space(10)] public ConfigurableJoint joint;
         public Rigidbody rb;
         [HideInInspector] public Vector3 startingPos;
+        [HideInInspector] public Vector3 startingLocalPos;
         [HideInInspector] public Quaternion startingRot;
 
         [Header("Ground & Target Contact")] [Space(10)]
@@ -72,10 +73,9 @@ namespace MLAgents
             var yRot = Mathf.Lerp(-joint.angularYLimit.limit, joint.angularYLimit.limit, y);
             var zRot = Mathf.Lerp(-joint.angularZLimit.limit, joint.angularZLimit.limit, z);
 
-            currentXNormalizedRot =
-                Mathf.InverseLerp(joint.lowAngularXLimit.limit, joint.highAngularXLimit.limit, xRot);
-            currentYNormalizedRot = Mathf.InverseLerp(-joint.angularYLimit.limit, joint.angularYLimit.limit, yRot);
-            currentZNormalizedRot = Mathf.InverseLerp(-joint.angularZLimit.limit, joint.angularZLimit.limit, zRot);
+            currentXNormalizedRot = x;
+            currentYNormalizedRot = y;
+            currentZNormalizedRot = z;
 
             joint.targetRotation = Quaternion.Euler(xRot, yRot, zRot);
             currentEularJointRotation = new Vector3(xRot, yRot, zRot);
@@ -84,12 +84,10 @@ namespace MLAgents
         public void SetJointStrength(float strength)
         {
             var rawVal = (strength + 1f) * 0.5f * thisJDController.maxJointForceLimit;
-            var jd = new JointDrive
-            {
-                positionSpring = thisJDController.maxJointSpring,
-                positionDamper = thisJDController.jointDampen,
-                maximumForce = rawVal
-            };
+            JointDrive jd = joint.slerpDrive;
+            jd.positionSpring = thisJDController.maxJointSpring;
+            jd.positionDamper = thisJDController.jointDampen;
+            jd.maximumForce = rawVal;
             joint.slerpDrive = jd;
             currentStrength = jd.maximumForce;
         }
@@ -118,6 +116,7 @@ namespace MLAgents
                 rb = t.GetComponent<Rigidbody>(),
                 joint = t.GetComponent<ConfigurableJoint>(),
                 startingPos = t.position,
+                startingLocalPos = t.localPosition,
                 startingRot = t.rotation
             };
             bp.rb.maxAngularVelocity = 100;
