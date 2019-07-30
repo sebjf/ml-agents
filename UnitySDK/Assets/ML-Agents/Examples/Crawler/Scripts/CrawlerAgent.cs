@@ -68,7 +68,7 @@ public class CrawlerAgent : Agent
 
         SetupBodyParts();
 
-
+        SetResetParameters();
     }
 
     /// <summary>
@@ -167,58 +167,6 @@ public class CrawlerAgent : Agent
 
     public override void AgentAction(float[] vectorAction, string textAction)
     {
-
-
-        if(generateNewLegSizes)
-        {
-            //RESET TO STARTING POSE
-            foreach (var bodyPart in jdController.bodyPartsDict.Values)
-            {
-                // bodyPart.rb.isKinematic = true;
-                bodyPart.Reset(bodyPart);
-            }
-            foreach (var bp in upper_legs)
-            {
-                //DISCONNECT THE JOINT SO WE CAN MOVE IT
-                jdController.bodyPartsDict[bp].joint.connectedBody = null;
-
-                float startingYScale = bp.localScale.y;
-                bp.localScale = new Vector3(bp.localScale.x, resetParams["upperlegScale"], bp.localScale.z);
-                var changeY = (bp.localScale.y - startingYScale)/2;
-                var deltaChange = changeY/startingYScale; //PERCENT AMOUNT OF THE SCALE THAT CHANGED. MOVE THE POSITION BASED ON THIS DELTA CHANGE
-                bp.localPosition = jdController.bodyPartsDict[bp].startingLocalPos + bp.up * deltaChange;
-
-                //RECONNECT THE JOINT TO THE BODY
-                jdController.bodyPartsDict[bp].joint.connectedBody = jdController.bodyPartsDict[body].rb;
-
-            }
-            jdController.bodyPartsDict.Clear();
-            jdController.bodyPartsList.Clear();
-            SetupBodyParts();
-            // foreach (var bodyPart in jdController.bodyPartsDict.Values)
-            // {
-            //     bodyPart.rb.isKinematic = false;
-            // }
-            generateNewLegSizes = false;
-        }
-        // if(generateNewLegSizes)
-        // {
-        //     foreach (var bp in upper_legs)
-        //     {
-        //         bpDict[bp].rb.isKinematic = true;
-        //         string serializedJoint = JsonUtility.ToJson(bpDict[bp].joint);
-        //         DestroyImmediate(bpDict[bp].joint);
-        //         bp.localPosition = new Vector3(bp.localPosition.x, moveJointTest, bp.localPosition.z);
-        //         var cj = bp.gameObject.AddComponent<ConfigurableJoint>();
-        //         cj = JsonUtility.FromJsonOverwrite(serializedJoint, cj);
-        //         bpDict[bp].rb.isKinematic = false;
-
-        //     }
-        //     generateNewLegSizes = false;
-        // }
-
-
-
         if (detectTargets)
         {
             foreach (var bodyPart in jdController.bodyPartsDict.Values)
@@ -344,81 +292,106 @@ public class CrawlerAgent : Agent
         // SetResetParameters();
     }
 
+    public void SetUpperLegSize()
+    {
+        float upperLegStartingYScale = lower_legs[0].localScale.y;
+
+        if (generateNewLegSizes)
+        {
+            //RESET TO STARTING POSE
+            foreach (var bodyPart in jdController.bodyPartsDict.Values)
+            {
+                bodyPart.Reset(bodyPart);
+            }
+            foreach (var bp in upper_legs)
+            {
+                //DISCONNECT THE JOINT SO WE CAN MOVE IT
+                jdController.bodyPartsDict[bp].joint.connectedBody = null;
+
+                float startingYScale = bp.localScale.y;
+                bp.localScale = new Vector3(bp.localScale.x, resetParams["upperlegScale"], bp.localScale.z);
+                var changeY = (bp.localScale.y - startingYScale) / 2;
+                var deltaChange = changeY / startingYScale; //PERCENT AMOUNT OF THE SCALE THAT CHANGED. MOVE THE POSITION BASED ON THIS DELTA CHANGE
+                bp.localPosition = jdController.bodyPartsDict[bp].startingLocalPos + bp.up * deltaChange;
+
+                //RECONNECT THE JOINT TO THE BODY
+                jdController.bodyPartsDict[bp].joint.connectedBody = jdController.bodyPartsDict[body].rb;
+
+            }
+            for (int i = 0; i < 4; i++)
+            {
+
+                var bp = lower_legs[i];
+
+                // CHANGE ANCHOR POSITION?
+                jdController.bodyPartsDict[bp].joint.autoConfigureConnectedAnchor = false;
+
+                //set the anchor
+                jdController.bodyPartsDict[bp].joint.connectedAnchor = upper_legs[i].gameObject.GetComponentInChildren<Transform>().localPosition;
+
+                //DISCONNECT THE JOINT SO WE CAN MOVE IT
+                jdController.bodyPartsDict[bp].joint.connectedBody = null;
+                var changeY = (bp.localScale.y - upperLegStartingYScale);
+                var deltaChange = changeY / upperLegStartingYScale; //PERCENT AMOUNT OF THE SCALE THAT CHANGED. MOVE THE POSITION BASED ON THIS DELTA CHANGE
+                bp.localPosition = (jdController.bodyPartsDict[bp].startingLocalPos + bp.up * deltaChange);
+
+                //RECONNECT THE JOINT TO THE UPPER LEG
+                jdController.bodyPartsDict[bp].joint.connectedBody = jdController.bodyPartsDict[upper_legs[i]].rb;
+
+                jdController.bodyPartsDict[bp].joint.autoConfigureConnectedAnchor = true;
+            }
+
+            jdController.bodyPartsDict.Clear();
+            jdController.bodyPartsList.Clear();
+            SetupBodyParts();
+        }
+    }
+
     public void SetForeLegSize()
     {
 
-        foreach (var bp in lower_legs)
+        //foreach (var bp in lower_legs)
+        //{
+        //    bp.localScale = new Vector3(bp.localScale.x, resetParams["forelegScale"], bp.localScale.z);
+        //}
+        if (generateNewLegSizes)
         {
-            bp.localScale = new Vector3(bp.localScale.x, resetParams["forelegScale"], bp.localScale.z);
-        }
+            for (int i = 0; i < 4; i++)
+            {
+                var bp = lower_legs[i];
+                var upper_leg_bp = upper_legs[i];
 
+                // CHANGE ANCHOR POSITION?
+                jdController.bodyPartsDict[bp].joint.autoConfigureConnectedAnchor = false;
+                jdController.bodyPartsDict[bp].joint.connectedBody = null;
+
+                float startingYScale = bp.localScale.y;
+                bp.localScale = new Vector3(bp.localScale.x, resetParams["forelegScale"], bp.localScale.z);
+                var changeY = (bp.localScale.y - startingYScale) / 2;
+                var deltaChange = changeY / startingYScale;
+                bp.localPosition = jdController.bodyPartsDict[bp].startingLocalPos + bp.up * deltaChange;
+                   
+                //RECONNECT THE JOINT TO THE UPPERLEG
+                jdController.bodyPartsDict[bp].joint.connectedBody = jdController.bodyPartsDict[upper_leg_bp].rb;
+
+                //jdController.bodyPartsDict[bp].joint.connectedAnchor = upper_leg_bp.transform.GetChild(0).localPosition;
+                jdController.bodyPartsDict[bp].joint.connectedAnchor = new Vector3(0f, -1f, 0);
+                jdController.bodyPartsDict[bp].joint.autoConfigureConnectedAnchor = true;
+            }
+        }
+        jdController.bodyPartsDict.Clear();
+        jdController.bodyPartsList.Clear();
+        SetupBodyParts();
     }
 
-    public void SetUpperLegSize()
+    void SetLegSizes()
     {
-        foreach (var bp in upper_legs)
-        {
-            // ConfigurableJoint cj =  bpDict[bp].joint;
-
-            // Destroy(bpDict[bp].joint);
-            // bpDict[bp].joint
-            // var children = new Transform[bp.transform.childCount];
-            // int i = 0;
-            // foreach (Transform T in bp.transform)
-            //     children[i++] = T;
-            // bp.transform.DetachChildren();
-            // Rigidbody bpRb = bp.GetComponent<Rigidbody>();
-            // bpRb.isKinematic = true;
-            float startingHeight = bp.localScale.y;
-            bp.localScale = new Vector3(bp.localScale.x, resetParams["upperlegScale"], bp.localScale.z);
-            // var changeY = (bp.localScale.y - startingHeight);
-            var changeY = (bp.localScale.y - startingHeight)/2;
-            bp.localPosition = new Vector3(bp.localPosition.x, bp.localPosition.y - changeY, bp.localPosition.z);
-
-            // bp.localPosition = new Vector3(bp.localPosition.x, -5, bp.localPosition.z);
-
-            // bpRb.isKinematic = false;
-            // foreach (Transform T in children)              // Re-Attach
-            //     T.parent = bp.transform;
-
-            // bp.localPosition = bp.gameObject.transform.Find("upperJoint").transform.localPosition;
-        }
-
-    }
-    // public void SetUpperLegSize()
-    // {
-    //     foreach (var bp in upper_legs)
-    //     {
-    //         // var children = new Transform[bp.transform.childCount];
-    //         // int i = 0;
-    //         // foreach (Transform T in bp.transform)
-    //         //     children[i++] = T;
-
-    //         // bp.transform.DetachChildren();
-    //         Rigidbody bpRb = bp.GetComponent<Rigidbody>();
-    //         bpRb.isKinematic = true;
-    //         float startingHeight = bp.localScale.y;
-    //         bp.localScale = new Vector3(bp.localScale.x, resetParams["upperlegScale"], bp.localScale.z);
-    //         var changeY = (bp.localScale.y - startingHeight)/2;
-    //         // bp.localPosition = new Vector3(bp.localPosition.x, bp.localPosition.y - changeY, bp.localPosition.z);
-
-    //         bp.localPosition = new Vector3(bp.localPosition.x, -5, bp.localPosition.z);
-    //         bpRb.isKinematic = false;
-    //         // foreach (Transform T in children)              // Re-Attach
-    //         //     T.parent = bp.transform;
-
-    //         // bp.localPosition = bp.gameObject.transform.Find("upperJoint").transform.localPosition;
-    //     }
-
-    // }
-
-    public void SetLegSizes()
-    {
-        // SetForeLegSize();
         SetUpperLegSize();
+        SetForeLegSize();
+        generateNewLegSizes = false;
     }
 
-    public void SetAgentStartingHeight()
+    void SetAgentStartingHeight()
     {
         float newHeight = leg0Upper.localScale.y + leg0Lower.localScale.y + 2;
 
@@ -430,7 +403,7 @@ public class CrawlerAgent : Agent
 
     public void SetResetParameters()
     {
+        SetAgentStartingHeight();
         SetLegSizes();
-        // SetAgentStartingHeight();
     }
 }
