@@ -128,6 +128,7 @@ class SubprocessEnvManager(EnvManager):
     ):
         super().__init__()
         self.env_workers: List[UnityEnvWorker] = []
+        self.num_env_steps_returned = 0
         self.step_queue: Queue = Queue()
         self.previous_agent_action_infos: Dict[str, ActionInfo] = {}
         for worker_idx in range(n_env):
@@ -178,6 +179,7 @@ class SubprocessEnvManager(EnvManager):
             except EmptyQueueException:
                 pass
 
+        self.num_env_steps_returned = len(worker_steps)
         agent_steps = self._postprocess_steps(worker_steps)
         return agent_steps
 
@@ -248,17 +250,16 @@ class SubprocessEnvManager(EnvManager):
     @timed
     def _take_step(self, previous_steps: Dict[str, AgentStep]) -> Dict[str, ActionInfo]:
         all_action_info: Dict[str, ActionInfo] = {}
-        previous_steps_by_brain: Dict[str, List[AgentStep]] = {}
+        previous_infos_by_brain: Dict[str, List[AgentInfo]] = {}
         for agent_id, agent_step in previous_steps.items():
             brain_name = agent_step.current_agent_info.brain_name
-            if brain_name in previous_steps_by_brain.keys():
-                previous_steps_by_brain[brain_name].append(agent_step)
+            if brain_name in previous_infos_by_brain.keys():
+                previous_infos_by_brain[brain_name].append(
+                    agent_step.current_agent_info
+                )
             else:
-                previous_steps_by_brain[brain_name] = [agent_step]
-        for brain_name, agent_steps in previous_steps_by_brain.items():
-            agent_infos = list(
-                map(lambda a_step: a_step.current_agent_info, agent_steps)
-            )
+                previous_infos_by_brain[brain_name] = [agent_step.current_agent_info]
+        for brain_name, agent_infos in previous_infos_by_brain.items():
             all_action_info[brain_name] = self.policies[brain_name].get_action(
                 agent_infos
             )

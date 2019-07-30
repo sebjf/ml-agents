@@ -131,11 +131,9 @@ class AgentInfo:
         if memory_size == 0:
             return np.zeros((0, 0))
         else:
-            [
-                x.memories.extend([0] * (memory_size - len(x.memories)))
-                for x in agent_infos
-            ]
-            return np.array([list(x.memories) for x in agent_infos])
+            memories_lists = [x.memories.flatten().tolist() for x in agent_infos]
+            [x.extend([0] * (memory_size - len(x))) for x in memories_lists]
+            return np.array(memories_lists)
 
     @staticmethod
     def from_agent_proto(
@@ -153,9 +151,9 @@ class AgentInfo:
             vis_obs += [obs]
         memory_size = len(agent_info.memories)
         if memory_size == 0:
-            memory: List[float] = []
+            memory = np.zeros(0)
         else:
-            memory = list(agent_info.memories)
+            memory = np.array(list(agent_info.memories)).reshape(memory_size)
         total_num_actions = sum(brain_params.vector_action_space_size)
         mask_actions = np.ones((1, total_num_actions))
         if agent_info.action_mask is not None:

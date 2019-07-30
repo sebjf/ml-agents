@@ -163,8 +163,8 @@ class PPOTrainer(Trainer):
                         next_info.vector_observations
                     )
                 if self.policy.use_recurrent:
-                    if curr_info.memories.shape[1] == 0:
-                        curr_info.memories = np.zeros((1, self.policy.m_size))
+                    if curr_info.memories.shape[0] == 0:
+                        curr_info.memories = np.zeros((self.policy.m_size))
                     self.training_buffer[agent_id]["memory"].append(curr_info.memories)
                 actions = stored_take_action_outputs["action"]
                 if self.policy.use_continuous_act:

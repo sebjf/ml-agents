@@ -115,7 +115,7 @@ class PPOPolicy(TFPolicy):
         if self.use_recurrent:
             if not self.use_continuous_act:
                 prev_vector_actions = np.array(
-                    map(lambda ai: ai.previous_vector_actions, agent_infos)
+                    list(map(lambda ai: ai.previous_vector_actions, agent_infos))
                 )
                 feed_dict[self.model.prev_action] = prev_vector_actions.reshape(
                     [-1, len(self.model.act_size)]
@@ -214,9 +214,9 @@ class PPOPolicy(TFPolicy):
         if self.use_vec_obs:
             feed_dict[self.model.vector_in] = [agent_info.vector_observations]
         if self.use_recurrent:
-            if agent_info.memories.shape[1] == 0:
+            if agent_info.memories.shape[0] == 0:
                 agent_info.memories = self.make_empty_memory(1)
-            feed_dict[self.model.memory_in] = [agent_info.memories]
+            feed_dict[self.model.memory_in] = [agent_info.memories.reshape(self.m_size)]
         if not self.use_continuous_act and self.use_recurrent:
             feed_dict[
                 self.model.prev_action

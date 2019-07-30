@@ -155,7 +155,7 @@ class TFPolicy(Policy):
             )
         if not self.use_continuous_act:
             mask_actions = np.concatenate(
-                list(map(lambda ai: [ai.action_mask], agent_infos)), axis=0
+                list(map(lambda ai: ai.action_mask, agent_infos)), axis=0
             )
             feed_dict[self.model.action_masks] = mask_actions
         return feed_dict
