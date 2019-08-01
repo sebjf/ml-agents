@@ -1,8 +1,9 @@
 from typing import *
 import cloudpickle
+import signal
 
 from mlagents.envs import UnityEnvironment
-from multiprocessing import Process, Pipe, Queue
+from multiprocessing import Process, Pipe, Queue, JoinableQueue
 from multiprocessing.connection import Connection
 from queue import Empty as EmptyQueueException
 from mlagents.envs.base_unity_environment import BaseUnityEnvironment
@@ -16,6 +17,10 @@ from mlagents.envs.timers import (
 )
 from mlagents.envs import AllBrainInfo, BrainParameters, ActionInfo
 
+def signal_handler(signal, frame):
+    raise KeyboardInterrupt
+
+signal.signal(signal.SIGINT, signal_handler)
 
 class EnvironmentCommand(NamedTuple):
     name: str
@@ -57,11 +62,12 @@ class UnityEnvWorker:
             raise KeyboardInterrupt
 
     def close(self):
+        pass
         try:
-            self.conn.send(EnvironmentCommand("close"))
+           self.conn.send(EnvironmentCommand("close"))
+        #    self.conn.close()
         except (BrokenPipeError, EOFError):
-            pass
-        self.process.join()
+           pass
 
 
 def worker(
@@ -75,8 +81,8 @@ def worker(
     def _send_response(cmd_name, payload):
         parent_conn.send(EnvironmentResponse(cmd_name, worker_id, payload))
 
-    try:
-        while True:
+    while True:
+        try:
             cmd: EnvironmentCommand = parent_conn.recv()
             if cmd.name == "step":
                 all_action_info = cmd.payload
@@ -114,12 +120,20 @@ def worker(
             elif cmd.name == "global_done":
                 _send_response("global_done", env.global_done)
             elif cmd.name == "close":
+                print("Received close command.")
                 break
-    except KeyboardInterrupt:
-        print("UnityEnvironment worker: keyboard interrupt")
-    finally:
-        step_queue.close()
+        except KeyboardInterrupt:
+            pass
+        except (BrokenPipeError, EOFError):
+            print("UnityEnvironment worker: broken pipe")
+            break
+    try:
+        #parent_conn.close()
         env.close()
+        # step_queue.close()
+        # step_queue.join_thread()
+    except (KeyboardInterrupt, BrokenPipeError, EOFError):
+        print("UnityEnvironment worker: keyboard interrupt AGAIN")
 
 
 class SubprocessEnvManager(EnvManager):
@@ -128,7 +142,7 @@ class SubprocessEnvManager(EnvManager):
     ):
         super().__init__()
         self.env_workers: List[UnityEnvWorker] = []
-        self.step_queue: Queue = Queue()
+        self.step_queue: JoinableQueue = JoinableQueue()
         for worker_idx in range(n_env):
             self.env_workers.append(
                 self.create_worker(worker_idx, self.step_queue, env_factory)
@@ -187,6 +201,7 @@ class SubprocessEnvManager(EnvManager):
         while any([ew.waiting for ew in self.env_workers]):
             if not self.step_queue.empty():
                 step = self.step_queue.get_nowait()
+                self.step_queue.task_done()
                 self.env_workers[step.worker_id].waiting = False
         # First enqueue reset commands for all workers so that they reset in parallel
         for ew in self.env_workers:
@@ -207,10 +222,19 @@ class SubprocessEnvManager(EnvManager):
         return self.env_workers[0].recv().payload
 
     def close(self) -> None:
+        print("Closing workers")
+        for env_worker in self.env_workers:
+            env_worker.close()
+        print("Done closing workers")
+        try:
+            while True:
+                self.step_queue.task_done()
+        except ValueError:
+            pass
         self.step_queue.close()
         self.step_queue.join_thread()
         for env_worker in self.env_workers:
-            env_worker.close()
+            env_worker.process.terminate()
 
     def _postprocess_steps(
         self, env_steps: List[EnvironmentResponse]
