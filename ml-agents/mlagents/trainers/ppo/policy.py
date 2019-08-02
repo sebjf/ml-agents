@@ -75,7 +75,7 @@ class PPOPolicy(Policy):
         :param brain_info: BrainInfo object containing inputs.
         :return: Outputs from network as defined by self.inference_dict.
         """
-        feed_dict = {self.model.sequence_length: 1}
+        feed_dict = {self.model.inputs["sequence_length"]: 1}
         epsilon = None
         if self.use_recurrent:
             if not self.use_continuous_act:
@@ -94,36 +94,104 @@ class PPOPolicy(Policy):
             feed_dict[self.model.epsilon] = epsilon
             feed_dict[self.model.is_update] = False
             # dummy input (just to make tf.where() happy)
-            feed_dict[self.model.features["actions_pre"]] = np.zeros(
-                    (len(brain_info.vector_observations), self.model.act_size[0])
-                )
+            feed_dict[self.model.inputs["actions_pre"]] = np.zeros(
+                (len(brain_info.vector_observations), self.model.act_size[0])
+            )
         feed_dict = self._fill_eval_dict(feed_dict, brain_info)
         run_out = self._execute_model(feed_dict, self.inference_dict)
         if self.use_continuous_act:
             run_out["random_normal_epsilon"] = epsilon
         return run_out
 
-    def update(self, update_buffer, batch_size, buffer_size, num_epoch):
+    def update(self, update_buffer, batch_size, num_epoch):
         """
         Updates model using buffer.
         :param num_sequences: Number of trajectories in batch.
         :param mini_batch: Experience batch.
         :return: Output from update process.
         """
+        update_buffer["masks"] = update_buffer["masks"].flatten()
+        update_buffer["discounted_returns"] = update_buffer[
+            "discounted_returns"
+        ].flatten()
+        update_buffer["value_estimates"] = update_buffer["value_estimates"].flatten()
+        update_buffer["advantages"] = update_buffer["advantages"].reshape([-1, 1])
+        update_buffer["action_probs"] = update_buffer["action_probs"].reshape(
+            [-1, sum(self.model.act_size)]
+        )
+
+        if self.use_continuous_act:
+            update_buffer["actions_pre"] = update_buffer["actions_pre"].reshape(
+                [-1, self.model.act_size[0]]
+            )
+            update_buffer["epsilon"] = update_buffer["random_normal_epsilon"].reshape(
+                [-1, self.model.act_size[0]]
+            )
+        else:
+            update_buffer["actions"] = update_buffer["actions"].reshape(
+                [-1, len(self.model.act_size)]
+            )
+            if self.use_recurrent:
+                update_buffer["prev_action"] = update_buffer["prev_action"].reshape(
+                    [-1, len(self.model.act_size)]
+                )
+            update_buffer["action_mask"] = update_buffer["action_mask"].reshape(
+                [-1, sum(self.brain.vector_action_space_size)]
+            )
+        if self.model.vec_obs_size > 0:
+            update_buffer["vector_obs"] = update_buffer["vector_obs"].reshape(
+                [-1, self.vec_obs_size]
+            )
+            if self.use_curiosity:
+                update_buffer["next_vector_in"] = update_buffer[
+                    "next_vector_in"
+                ].reshape([-1, self.vec_obs_size])
+        if self.model.vis_obs_size > 0:
+            for i, _ in enumerate(self.model.visual_in):
+                _obs = update_buffer["visual_obs%d" % i]
+                if self.sequence_length > 1 and self.use_recurrent:
+                    (_batch, _seq, _w, _h, _c) = _obs.shape
+                    update_buffer["visual_obs%d" % i] = _obs.reshape([-1, _w, _h, _c])
+                else:
+                    update_buffer["visual_obs%d" % i] = _obs
+            if self.use_curiosity:
+                for i, _ in enumerate(self.model.visual_in):
+                    _obs = update_buffer["next_visual_obs%d" % i]
+                    if self.sequence_length > 1 and self.use_recurrent:
+                        (_batch, _seq, _w, _h, _c) = _obs.shape
+                        update_buffer["next_visual_obs%d" % i] = _obs.reshape(
+                            [-1, _w, _h, _c]
+                        )
+                    else:
+                        update_buffer["next_visual_obs%d" % i] = _obs
+        if self.use_recurrent:
+            mem_in = update_buffer["memory"][:, 0, :]
+            update_buffer["memory"] = mem_in
+
+        buffer_size = len(update_buffer["actions"])
+        update_buffer["is_update"] = [True] * buffer_size
+        update_buffer["sequence_length"] = [self.sequence_length] * buffer_size
+
+        # initialize dataset
+        feed_dict = {
+            self.model.batch_size: batch_size,
+            self.model.buffer_size: buffer_size,
+        }
+        feed_dict.update(
+            {
+                self.model.placeholders[key]: update_buffer[key]
+                for key in self.model.placeholders
+            }
+        )
+        self.sess.run(self.model.ds_iter.initializer, feed_dict=feed_dict)
+
         all_run_out = []
         self.has_updated = True
-        input_dict = {self.model.placeholders[key]: update_buffer[key] \
-            for key in self.model.placeholders}
-        input_dict.update({self.model.num_epoch: num_epoch,
-            self.model.batch_size: batch_size, self.model.buffer_size: buffer_size})
-        self.sess.run(self.model.ds_iter.initializer, feed_dict=input_dict)
-        while True:
-            try:
+        for _ in range(num_epoch):
+            for _ in range(buffer_size // batch_size):
                 network_out = self.sess.run(list(self.update_dict.values()))
                 run_out = dict(zip(list(self.update_dict.keys()), network_out))
                 all_run_out.append(run_out)
-            except tf.errors.OutOfRangeError:
-                break
         return all_run_out
 
     def get_intrinsic_rewards(self, curr_info, next_info):
@@ -137,7 +205,7 @@ class PPOPolicy(Policy):
             if len(curr_info.agents) == 0:
                 return []
 
-            feed_dict = {self.model.sequence_length: 1}
+            feed_dict = {self.model.inputs["sequence_length"]: 1}
             if self.use_continuous_act:
                 feed_dict[
                     self.model.selected_actions
@@ -170,7 +238,7 @@ class PPOPolicy(Policy):
         :param idx: Index in BrainInfo of agent.
         :return: Value estimate.
         """
-        feed_dict = {self.model.sequence_length: 1}
+        feed_dict = {self.model.inputs["sequence_length"]: 1}
         for i in range(len(brain_info.visual_observations)):
             feed_dict[self.model.visual_in[i]] = [
                 brain_info.visual_observations[i][idx]

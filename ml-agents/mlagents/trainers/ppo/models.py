@@ -42,27 +42,25 @@ class PPOModel(LearningModel):
         """
         LearningModel.__init__(self, m_size, normalize, use_recurrent, brain, seed)
         self.use_curiosity = use_curiosity
-        self.num_epoch = tf.placeholder(tf.int64)
-        self.batch_size = tf.placeholder(tf.int64)
-        self.buffer_size = tf.placeholder(tf.int64)
-        self.create_placeholders()
+        self.batch_size = tf.placeholder(tf.int64, name="batch_size")
+        self.buffer_size = tf.placeholder(tf.int64, name="buffer_size")
+        self.create_ppo_placeholders()
         input_keys = self.placeholders.keys()
-        # fix order, prefetch size
-        dataset = tf.data.Dataset \
-                .from_tensor_slices(tuple([self.placeholders[key] for key in input_keys])) \
-                .shuffle(self.buffer_size) \
-                .batch(self.batch_size) \
-                .repeat(self.num_epoch) \
-                .prefetch(self.buffer_size)
-                
+        dataset = (
+            tf.data.Dataset.from_tensor_slices(
+                tuple([self.placeholders[key] for key in input_keys])
+            )
+            .shuffle(self.buffer_size)
+            .batch(self.batch_size)
+            .repeat()
+            .prefetch(self.buffer_size)
+        )
         self.ds_iter = dataset.make_initializable_iterator()
 
-        self.features = {}
-        features = self.ds_iter.get_next()
-        for key, feature in zip(input_keys, features):
-            self.features[key] = feature
-
-        self.init_model()
+        self.inputs = {}
+        inputs = self.ds_iter.get_next()
+        for key, inpt in zip(input_keys, inputs):
+            self.inputs[key] = inpt
 
         if num_layers < 1:
             num_layers = 1
@@ -101,9 +99,7 @@ class PPOModel(LearningModel):
         update_reward = tf.assign(last_reward, new_reward)
         return last_reward, new_reward, update_reward
 
-    def create_placeholders(self):
-        self.placeholders["is_update"] = tf.placeholder(
-            shape=None, dtype=tf.bool, name="is_update")
+    def create_ppo_placeholders(self):
         self.placeholders["discounted_returns"] = tf.placeholder(
             shape=[None], dtype=tf.float32, name="discounted_rewards"
         )
@@ -119,7 +115,9 @@ class PPOModel(LearningModel):
         if self.use_curiosity:
             if self.vis_obs_size > 0:
                 for i in range(self.vis_obs_size):
-                    self.placeholders["next_visual_obs" + str(i)] = self.create_visual_input(
+                    self.placeholders[
+                        "next_visual_obs" + str(i)
+                    ] = self.create_visual_input(
                         self.brain.camera_resolutions[i],
                         name="next_visual_obs_" + str(i),
                     )
@@ -130,7 +128,6 @@ class PPOModel(LearningModel):
                     dtype=tf.float32,
                     name="next_vector_observation",
                 )
-
 
     def create_curiosity_encoders(self):
         """
@@ -148,7 +145,7 @@ class PPOModel(LearningModel):
             next_visual_encoders = []
             for i in range(self.vis_obs_size):
                 # Create input ops for next (t+1) visual observations.
-                self.next_visual_in.append(self.features["next_visual_obs" + str(i)])
+                self.next_visual_in.append(self.inputs["next_visual_obs" + str(i)])
 
                 # Create the encoder ops for current and next visual input. Not that these encoders are siamese.
                 encoded_visual = self.create_visual_observation_encoder(
@@ -179,7 +176,7 @@ class PPOModel(LearningModel):
         if self.vec_obs_size > 0:
             # Create the encoder ops for current and next vector input. Not that these encoders are siamese.
             # Create input op for next (t+1) vector observation.
-            self.next_vector_in = self.features["next_vector_in"]
+            self.next_vector_in = self.inputs["next_vector_in"]
 
             encoded_vector_obs = self.create_vector_observation_encoder(
                 self.vector_in,
@@ -213,6 +210,8 @@ class PPOModel(LearningModel):
         """
         combined_input = tf.concat([encoded_state, encoded_next_state], axis=1)
         hidden = tf.layers.dense(combined_input, 256, activation=self.swish)
+        self.mask_input = self.inputs["masks"]
+        self.mask = tf.cast(self.mask_input, tf.int32)
         if self.brain.vector_action_space_type == "continuous":
             pred_action = tf.layers.dense(hidden, self.act_size[0], activation=None)
             squared_difference = tf.reduce_sum(
@@ -245,6 +244,8 @@ class PPOModel(LearningModel):
         """
         combined_input = tf.concat([encoded_state, self.selected_actions], axis=1)
         hidden = tf.layers.dense(combined_input, 256, activation=self.swish)
+        self.mask_input = self.inputs["masks"]
+        self.mask = tf.cast(self.mask_input, tf.int32)
         # We compare against the concatenation of all observation streams, hence `self.vis_obs_size + int(self.vec_obs_size > 0)`.
         pred_next_state = tf.layers.dense(
             hidden,
@@ -279,9 +280,11 @@ class PPOModel(LearningModel):
         self.learning_rate = tf.train.polynomial_decay(
             lr, self.global_step, max_step, 1e-10, power=1.0
         )
-        self.returns_holder = self.features["discounted_returns"]
-        self.advantage = self.features["advantages"]
-        self.old_value = self.features["value_estimates"]
+        self.returns_holder = self.inputs["discounted_returns"]
+        self.advantage = self.inputs["advantages"]
+        self.old_value = self.inputs["value_estimates"]
+        self.mask_input = self.inputs["masks"]
+        self.mask = tf.cast(self.mask_input, tf.int32)
 
         decay_epsilon = tf.train.polynomial_decay(
             epsilon, self.global_step, max_step, 0.1, power=1.0

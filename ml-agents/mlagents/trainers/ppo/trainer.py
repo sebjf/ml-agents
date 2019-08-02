@@ -423,9 +423,6 @@ class PPOTrainer(Trainer):
             mean_return=float(np.mean(self.cumulative_returns_since_policy_update)),
         )
         self.cumulative_returns_since_policy_update = []
-        n_sequences = max(
-            int(self.trainer_parameters["batch_size"] / self.policy.sequence_length), 1
-        )
         advantages = self.training_buffer.update_buffer["advantages"].get_batch()
         self.training_buffer.update_buffer["advantages"].set(
             (advantages - advantages.mean()) / (advantages.std() + 1e-10)
@@ -433,13 +430,10 @@ class PPOTrainer(Trainer):
         num_epoch = self.trainer_parameters["num_epoch"]
 
         buffer = self.training_buffer.update_buffer
-        update_buffer, buffer_size = self.get_update_buffer(buffer,
-            self.policy.sequence_length, n_sequences)
         run_out = self.policy.update(
-            update_buffer,
-            n_sequences,
-            buffer_size,
-            num_epoch
+            buffer.make_mini_batch(0, len(buffer["actions"])),
+            self.trainer_parameters["batch_size"],
+            num_epoch,
         )
         value_total = [r["value_loss"] for r in run_out]
         policy_total = [np.abs(r["policy_loss"]) for r in run_out]
@@ -454,65 +448,6 @@ class PPOTrainer(Trainer):
             self.stats["Losses/Inverse Loss"].append(np.mean(inverse_total))
         self.training_buffer.reset_update_buffer()
         self.trainer_metrics.end_policy_update()
-
-    def get_update_buffer(self, raw_buffer, sequence_length, n_sequences):
-        buffer_len = len(raw_buffer["actions"])
-        update_buffer = defaultdict(list)
-        for l in range(buffer_len // n_sequences):
-            start = l * n_sequences
-            end = (l + 1) * n_sequences
-            mini_batch = raw_buffer.make_mini_batch(start, end)
-
-            update_buffer['sequence_length'].extend([sequence_length]*n_sequences)
-            update_buffer['masks'].extend(mini_batch["masks"].flatten())
-            update_buffer['discounted_returns'].extend(mini_batch["discounted_returns"].flatten())
-            update_buffer['value_estimates'].extend(mini_batch["value_estimates"].flatten())
-            update_buffer['advantages'].extend(mini_batch["advantages"].reshape([-1, 1]))
-            update_buffer['action_probs'].extend(mini_batch["action_probs"].reshape(
-                [-1, sum(self.policy.model.act_size)]))
-
-            if self.policy.use_continuous_act:
-                update_buffer['actions_pre'].extend(mini_batch["actions_pre"].reshape(
-                    [-1, self.policy.model.act_size[0]]))
-                update_buffer['epsilon'].extend(mini_batch["random_normal_epsilon"].reshape(
-                    [-1, self.policy.model.act_size[0]]))
-            else:
-                update_buffer['actions'].extend(mini_batch["actions"].reshape(
-                    [-1, len(self.policy.model.act_size)]))
-                if self.policy.use_recurrent:
-                    update_buffer['prev_action'].extend(mini_batch["prev_action"].reshape(
-                        [-1, len(self.policy.model.act_size)]))
-                update_buffer['action_mask'].extend(mini_batch["action_mask"].reshape(
-                    [-1, sum(self.policy.brain.vector_action_space_size)]))
-            if self.policy.model.vec_obs_size > 0:
-                update_buffer['vector_obs'].extend(mini_batch["vector_obs"].reshape(
-                    [-1, self.policy.vec_obs_size]))
-                if self.use_curiosity:
-                    update_buffer['next_vector_in'].extend(
-                        mini_batch["next_vector_in"].reshape([-1, self.policy.vec_obs_size]))
-            if self.policy.model.vis_obs_size > 0:
-                for i, _ in enumerate(self.policy.model.visual_in):
-                    _obs = mini_batch['visual_obs%d' % i]
-                    if self.policy.sequence_length > 1 and self.use_recurrent:
-                        (_batch, _seq, _w, _h, _c) = _obs.shape
-                        update_buffer['visual_obs%d' % i].extend(_obs.reshape([-1, _w, _h, _c]))
-                    else:
-                        update_buffer['visual_obs%d' % i].extend(_obs)
-                if self.use_curiosity:
-                    for i, _ in enumerate(self.policy.model.visual_in):
-                        _obs = mini_batch['next_visual_obs%d' % i]
-                        if self.policy.sequence_length > 1 and self.use_recurrent:
-                            (_batch, _seq, _w, _h, _c) = _obs.shape
-                            update_buffer['next_visual_obs%d' % i].extend(_obs.reshape(
-                                [-1, _w, _h, _c]))
-                        else:
-                            update_buffer['next_visual_obs%d' % i].extend(_obs)
-            if self.policy.use_recurrent:
-                mem_in = mini_batch["memory"][:, 0, :]
-                update_buffer['memory'].extend(mem_in)
-            update_buffer['is_update'].extend([True]*n_sequences)
-
-        return update_buffer, (buffer_len // n_sequences) * n_sequences
 
 
 def discount_rewards(r, gamma=0.99, value_next=0.0):
