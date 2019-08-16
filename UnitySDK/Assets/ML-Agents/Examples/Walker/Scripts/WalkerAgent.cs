@@ -89,7 +89,7 @@ public class WalkerAgent : Agent
 
         // if (bp.rb.transform != hips && bp.rb.transform != handL && bp.rb.transform != handR &&
         //     bp.rb.transform != footL && bp.rb.transform != footR && bp.rb.transform != head)
-        if (bp.rb.transform != hips && bp.rb.transform != handL && bp.rb.transform != handR)
+        if (bp.rb.transform != hips && bp.rb.transform != handL && bp.rb.transform != handR && bp.rb.transform != chest && bp.rb.transform != head)
         {
             AddVectorObs(bp.currentXNormalizedRot);
             AddVectorObs(bp.currentYNormalizedRot);
@@ -119,6 +119,17 @@ public class WalkerAgent : Agent
     //     }
     // }
 
+    float RaycastDownDist(Vector3 pos, float maxDist)
+    {
+        RaycastHit hit;
+        float val = 1;
+        if (Physics.Raycast(pos, Vector3.down, out hit, maxDist, groundLayer))
+        {
+            val = hit.distance/maxDist;
+        }
+        return val;
+    }
+
     /// <summary>
     /// Loop over body parts to add them to observation.
     /// </summary>
@@ -136,22 +147,28 @@ public class WalkerAgent : Agent
         // AddVectorObs(hips.forward);
         // AddVectorObs(hips.up);
 
-        // Forward & up to help with orientation
-        RaycastHit hit;
-        float maxRaycastDist = 5;
-        if (Physics.Raycast(hips.position, Vector3.down, out hit, maxRaycastDist, groundLayer))
-        {
-            AddVectorObs(hit.distance/maxRaycastDist);
-        }
-        else
-            AddVectorObs(maxRaycastDist);
+        AddVectorObs(RaycastDownDist(hips.position, 5));
+        AddVectorObs(RaycastDownDist(head.position, 5));
 
 
-        Vector3 bodyForwardRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(hips.forward);
-        AddVectorObs(bodyForwardRelativeToLookRotationToTarget);
 
-        Vector3 bodyUpRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(hips.up);
-        AddVectorObs(bodyUpRelativeToLookRotationToTarget);
+        // Vector3 hipsForwardRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(hips.forward);
+        //Hips forward relative to lookRotation to target
+        AddVectorObs(targetDirMatrix.inverse.MultiplyVector(hips.forward));
+        //Hips up relative to lookRotation to target
+        AddVectorObs(targetDirMatrix.inverse.MultiplyVector(hips.up));
+        //Head forward relative to lookRotation to target
+        AddVectorObs(targetDirMatrix.inverse.MultiplyVector(head.forward));
+        //Head up relative to lookRotation to target
+        AddVectorObs(targetDirMatrix.inverse.MultiplyVector(head.up));
+
+        // Vector3 hipsUpRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(hips.up);
+        // AddVectorObs(hipsUpRelativeToLookRotationToTarget);
+        // Vector3 headForwardRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(head.forward);
+        // AddVectorObs(headForwardRelativeToLookRotationToTarget);
+
+        // Vector3 headUpRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(head.up);
+        // AddVectorObs(headUpRelativeToLookRotationToTarget);
 
         foreach (var bodyPart in jdController.bodyPartsDict.Values)
         {
@@ -171,8 +188,9 @@ public class WalkerAgent : Agent
             var bpDict = jdController.bodyPartsDict;
             int i = -1;
 
-            bpDict[chest].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], vectorAction[++i]);
+            // bpDict[chest].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], vectorAction[++i]);
             bpDict[spine].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], vectorAction[++i]);
+            // bpDict[head].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], 0);
 
             bpDict[thighL].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], 0);
             bpDict[thighR].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], 0);
@@ -186,12 +204,11 @@ public class WalkerAgent : Agent
             bpDict[armR].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], 0);
             bpDict[forearmL].SetJointTargetRotation(vectorAction[++i], 0, 0);
             bpDict[forearmR].SetJointTargetRotation(vectorAction[++i], 0, 0);
-            bpDict[head].SetJointTargetRotation(vectorAction[++i], vectorAction[++i], 0);
 
             //update joint strength settings
-            bpDict[chest].SetJointStrength(vectorAction[++i]);
+            // bpDict[chest].SetJointStrength(vectorAction[++i]);
             bpDict[spine].SetJointStrength(vectorAction[++i]);
-            bpDict[head].SetJointStrength(vectorAction[++i]);
+            // bpDict[head].SetJointStrength(vectorAction[++i]);
             bpDict[thighL].SetJointStrength(vectorAction[++i]);
             bpDict[shinL].SetJointStrength(vectorAction[++i]);
             bpDict[footL].SetJointStrength(vectorAction[++i]);
@@ -212,7 +229,8 @@ public class WalkerAgent : Agent
         // c. Encourage head height.
         // d. Discourage head movement.
         AddReward(
-            +0.03f * Vector3.Dot(dirToTarget.normalized, jdController.bodyPartsDict[hips].rb.velocity)
+            // +0.03f * Vector3.Dot(dirToTarget.normalized, jdController.bodyPartsDict[hips].rb.velocity)
+            + 0.01f * Vector3.Dot(dirToTarget.normalized, jdController.bodyPartsDict[hips].rb.velocity)
             + 0.01f * Vector3.Dot(dirToTarget.normalized, hips.forward)
             + 0.02f * (head.position.y - hips.position.y)
             - 0.01f * Vector3.Distance(jdController.bodyPartsDict[head].rb.velocity,

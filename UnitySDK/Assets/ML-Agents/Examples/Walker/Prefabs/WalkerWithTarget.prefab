@@ -781,8 +781,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!64 &6011318205337981365
@@ -1458,7 +1458,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6011660618695947837}
   serializedVersion: 2
-  m_Mass: 1
+  m_Mass: 2
   m_Drag: 0.02
   m_AngularDrag: 0.05
   m_UseGravity: 1
@@ -1682,7 +1682,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6011783636829227275}
   serializedVersion: 2
-  m_Mass: 0.5
+  m_Mass: 1
   m_Drag: 0.02
   m_AngularDrag: 0.05
   m_UseGravity: 1
@@ -1798,8 +1798,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!135 &2480228600104051879
@@ -2128,7 +2128,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6011828434320001895}
   serializedVersion: 2
-  m_Mass: 1
+  m_Mass: 2
   m_Drag: 0.02
   m_AngularDrag: 0.05
   m_UseGravity: 1
@@ -2468,8 +2468,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!64 &6011838176702432401
@@ -2891,7 +2891,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6011889562992163147}
   serializedVersion: 2
-  m_Mass: 1.5
+  m_Mass: 3
   m_Drag: 0.02
   m_AngularDrag: 0.05
   m_UseGravity: 1
@@ -3207,7 +3207,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6012151612752387447}
   serializedVersion: 2
-  m_Mass: 0.5
+  m_Mass: 1
   m_Drag: 0.02
   m_AngularDrag: 0.05
   m_UseGravity: 1
@@ -3323,8 +3323,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 0}
-  agentDoneOnGroundContact: 1
-  penalizeGroundContact: 1
+  agentDoneOnGroundContact: 0
+  penalizeGroundContact: 0
   groundContactPenalty: -1
   touchingGround: 0
 --- !u!135 &4710735005405979984
@@ -3430,7 +3430,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6012163841028912671}
   serializedVersion: 2
-  m_Mass: 1.5
+  m_Mass: 3
   m_Drag: 0.02
   m_AngularDrag: 0.05
   m_UseGravity: 1

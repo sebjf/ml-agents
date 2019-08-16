@@ -13,18 +13,11 @@ MonoBehaviour:
   m_Name: WalkerLearningNew
   m_EditorClassIdentifier: 
   brainParameters:
-    vectorObservationSize: 222
+    vectorObservationSize: 221
     numStackedVectorObservations: 5
-    vectorActionSize: 27000000
+    vectorActionSize: 20000000
     cameraResolutions: []
     vectorActionDescriptions:
-    - 
-    - 
-    - 
-    - 
-    - 
-    - 
-    - 
     - 
     - 
     - 
