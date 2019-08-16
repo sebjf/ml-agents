@@ -13,6 +13,9 @@ public class WalkerAcademy : Academy
         // make walker joint calculations more accurate.
         Physics.defaultSolverIterations = 12;
         Physics.defaultSolverVelocityIterations = 12;
+        Physics.defaultMaxAngularSpeed = 50;
+        // Physics.gravity = new Vector3(0, -20, 0);
+        Physics.reuseCollisionCallbacks = true;
         Time.fixedDeltaTime = 0.01333f; //(75fps). default is .2 (60fps)
         Time.maximumDeltaTime = .15f; // Default is .33
     }

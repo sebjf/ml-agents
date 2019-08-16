@@ -34,9 +34,14 @@ public class WalkerAgent : Agent
     private Rigidbody spineRb;
 
     private ResetParameters resetParams;
-
+    Quaternion lookRotation;
+    Matrix4x4 targetDirMatrix;
+    AvgCenterOfMass avgCOM;
+    public LayerMask groundLayer;
     public override void InitializeAgent()
     {
+        avgCOM = GetComponent<AvgCenterOfMass>();
+
         jdController = GetComponent<JointDriveController>();
         jdController.SetupBodyPart(hips);
         jdController.SetupBodyPart(chest);
@@ -72,13 +77,19 @@ public class WalkerAgent : Agent
     {
         var rb = bp.rb;
         AddVectorObs(bp.groundContact.touchingGround ? 1 : 0); // Is this bp touching the ground
-        AddVectorObs(rb.velocity);
-        AddVectorObs(rb.angularVelocity);
+        Vector3 velocityRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(rb.velocity);
+        AddVectorObs(velocityRelativeToLookRotationToTarget);
+
+        Vector3 angularVelocityRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(rb.angularVelocity);
+        AddVectorObs(angularVelocityRelativeToLookRotationToTarget);
+        // AddVectorObs(rb.velocity);
+        // AddVectorObs(rb.angularVelocity);
         Vector3 localPosRelToHips = hips.InverseTransformPoint(rb.position);
         AddVectorObs(localPosRelToHips);
 
-        if (bp.rb.transform != hips && bp.rb.transform != handL && bp.rb.transform != handR &&
-            bp.rb.transform != footL && bp.rb.transform != footR && bp.rb.transform != head)
+        // if (bp.rb.transform != hips && bp.rb.transform != handL && bp.rb.transform != handR &&
+        //     bp.rb.transform != footL && bp.rb.transform != footR && bp.rb.transform != head)
+        if (bp.rb.transform != hips && bp.rb.transform != handL && bp.rb.transform != handR)
         {
             AddVectorObs(bp.currentXNormalizedRot);
             AddVectorObs(bp.currentYNormalizedRot);
@@ -86,6 +97,27 @@ public class WalkerAgent : Agent
             AddVectorObs(bp.currentStrength / jdController.maxJointForceLimit);
         }
     }
+    // /// <summary>
+    // /// Add relevant information on each body part to observations.
+    // /// </summary>
+    // public void CollectObservationBodyPart(BodyPart bp)
+    // {
+    //     var rb = bp.rb;
+    //     AddVectorObs(bp.groundContact.touchingGround ? 1 : 0); // Is this bp touching the ground
+    //     AddVectorObs(rb.velocity);
+    //     AddVectorObs(rb.angularVelocity);
+    //     Vector3 localPosRelToHips = hips.InverseTransformPoint(rb.position);
+    //     AddVectorObs(localPosRelToHips);
+
+    //     if (bp.rb.transform != hips && bp.rb.transform != handL && bp.rb.transform != handR &&
+    //         bp.rb.transform != footL && bp.rb.transform != footR && bp.rb.transform != head)
+    //     {
+    //         AddVectorObs(bp.currentXNormalizedRot);
+    //         AddVectorObs(bp.currentYNormalizedRot);
+    //         AddVectorObs(bp.currentZNormalizedRot);
+    //         AddVectorObs(bp.currentStrength / jdController.maxJointForceLimit);
+    //     }
+    // }
 
     /// <summary>
     /// Loop over body parts to add them to observation.
@@ -94,15 +126,39 @@ public class WalkerAgent : Agent
     {
         jdController.GetCurrentJointForces();
 
-        AddVectorObs(dirToTarget.normalized);
-        AddVectorObs(jdController.bodyPartsDict[hips].rb.position);
-        AddVectorObs(hips.forward);
-        AddVectorObs(hips.up);
+
+        lookRotation = Quaternion.LookRotation(dirToTarget);
+        targetDirMatrix = Matrix4x4.TRS(Vector3.zero, lookRotation, Vector3.one);
+
+
+        // AddVectorObs(dirToTarget.normalized);
+        // AddVectorObs(jdController.bodyPartsDict[hips].rb.position);
+        // AddVectorObs(hips.forward);
+        // AddVectorObs(hips.up);
+
+        // Forward & up to help with orientation
+        RaycastHit hit;
+        float maxRaycastDist = 5;
+        if (Physics.Raycast(hips.position, Vector3.down, out hit, maxRaycastDist, groundLayer))
+        {
+            AddVectorObs(hit.distance/maxRaycastDist);
+        }
+        else
+            AddVectorObs(maxRaycastDist);
+
+
+        Vector3 bodyForwardRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(hips.forward);
+        AddVectorObs(bodyForwardRelativeToLookRotationToTarget);
+
+        Vector3 bodyUpRelativeToLookRotationToTarget = targetDirMatrix.inverse.MultiplyVector(hips.up);
+        AddVectorObs(bodyUpRelativeToLookRotationToTarget);
 
         foreach (var bodyPart in jdController.bodyPartsDict.Values)
         {
             CollectObservationBodyPart(bodyPart);
         }
+        AddVectorObs(hips.InverseTransformPoint(avgCOM.avgCOMWorldSpace));
+
     }
 
     public override void AgentAction(float[] vectorAction, string textAction)

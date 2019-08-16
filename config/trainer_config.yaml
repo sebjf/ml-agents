@@ -186,6 +186,38 @@ CrawlerDynamicLearning:
             strength: 1.0
             gamma: 0.995
 
+PuppoLearningNew:
+    normalize: true
+    num_epoch: 3
+    time_horizon: 1000
+    batch_size: 2024
+    buffer_size: 20240
+    max_steps: 1e7
+    summary_freq: 3000
+    num_layers: 3
+    hidden_units: 512
+    reward_signals:
+        extrinsic:
+            strength: 1.0
+            gamma: 0.995
+
+WalkerLearningNew:
+    normalize: true
+    num_epoch: 3
+    # time_horizon: 256
+    time_horizon: 1000
+    # learning_rate: 0.001
+    batch_size: 2048
+    buffer_size: 20480
+    max_steps: 2e6
+    summary_freq: 3000
+    num_layers: 3
+    hidden_units: 512
+    reward_signals:
+        extrinsic:
+            strength: 1.0
+            gamma: 0.995
+
 WalkerLearning:
     normalize: true
     num_epoch: 3
