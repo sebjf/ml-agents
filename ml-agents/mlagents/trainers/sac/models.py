@@ -785,6 +785,9 @@ class SACModel(LearningModel):
 
         self.rewards_holders = {}
         self.min_policy_qs = {}
+        self.is_weights = tf.placeholder(
+            shape=[None], dtype=tf.float32, name="is_weights"
+        )
 
         for i, name in enumerate(stream_names):
             if discrete:
@@ -870,13 +873,22 @@ class SACModel(LearningModel):
                 q1_stream = q1_streams[name]
                 q2_stream = q2_streams[name]
 
-            _q1_loss = 0.5 * tf.reduce_mean(
-                tf.to_float(self.mask) * tf.squared_difference(q_backup, q1_stream)
+            _q1_loss_per_element = (
+                0.5
+                * tf.to_float(self.mask)
+                * tf.squared_difference(q_backup, q1_stream)
+                * self.is_weights
             )
+            self.q1_loss_per_element = _q1_loss_per_element
+            _q1_loss = tf.reduce_mean(_q1_loss_per_element)
 
-            _q2_loss = 0.5 * tf.reduce_mean(
-                tf.to_float(self.mask) * tf.squared_difference(q_backup, q2_stream)
+            _q2_loss = (
+                0.5
+                * tf.to_float(self.mask)
+                * tf.squared_difference(q_backup, q2_stream)
+                * self.is_weights
             )
+            _q2_loss = tf.reduce_mean(_q2_loss)
 
             q1_losses.append(_q1_loss)
             q2_losses.append(_q2_loss)

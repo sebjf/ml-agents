@@ -1,5 +1,6 @@
 import random
 from collections import defaultdict
+from typing import Dict
 
 import numpy as np
 import h5py
@@ -276,9 +277,11 @@ class Buffer(dict):
         # make max_length an integer number of sequence_lengths
         max_length -= max_length % sequence_length
         if current_length > max_length:
+            self.update_buffer.shuffle()
             for _key in self.update_buffer.keys():
                 self.update_buffer[_key] = self.update_buffer[_key][
-                    current_length - max_length :
+                    # current_length - max_length :
+                    0:max_length
                 ]
 
     def reset_local_buffers(self):
@@ -325,3 +328,111 @@ class Buffer(dict):
         """
         for agent_id in self.keys():
             self.append_update_buffer(agent_id, key_list, batch_size, training_length)
+
+
+class PriorityBuffer:
+    def __init__(self, max_size: int, alpha: float = 0.2):
+        self.max_size = max_size
+        self.alpha = alpha
+        self.cur_size = 0
+        self.buffer: Dict = {}
+        self.priorities = np.zeros(self.max_size)
+        self.init_length = 0
+        self.eviction_strategy = "rand"
+
+    def __len__(self):
+        return self.cur_size
+
+    def remove_n(self, n):
+        """Get n items for removal."""
+        assert self.init_length + n <= self.cur_size
+
+        if self.eviction_strategy == "rand":
+            # random removal
+            idxs = random.sample(range(self.init_length, self.cur_size), n)
+        elif self.eviction_strategy == "fifo":
+            # overwrite elements in cyclical fashion
+            idxs = [
+                self.init_length
+                + (self.remove_idx + i) % (self.max_size - self.init_length)
+                for i in range(n)
+            ]
+            self.remove_idx = idxs[-1] + 1 - self.init_length
+        elif self.eviction_strategy == "rank":
+            # remove lowest-priority indices
+            idxs = np.argpartition(self.priorities, n)[:n]
+
+        return idxs
+
+    def add(self, episodes, priorities, new_idxs=None):
+        """Add episodes to buffer."""
+        if new_idxs is None:
+            idx = 0
+            new_idxs = []
+            while self.cur_size < self.max_size and idx < len(episodes):
+                self.buffer[self.cur_size] = episodes[idx]
+                new_idxs.append(self.cur_size)
+                self.cur_size += 1
+                idx += 1
+
+            if idx < len(episodes):
+                remove_idxs = self.remove_n(len(episodes) - idx)
+                for remove_idx in remove_idxs:
+                    self.buffer[remove_idx] = episodes[idx]
+                    new_idxs.append(remove_idx)
+                    idx += 1
+        else:
+            assert len(new_idxs) == len(episodes)
+            for new_idx, ep in zip(new_idxs, episodes):
+                self.buffer[new_idx] = ep
+
+        self.priorities[new_idxs] = priorities
+        self.priorities[0 : self.init_length] = np.max(
+            self.priorities[self.init_length :]
+        )
+
+        assert len(self.buffer) == self.cur_size
+        return new_idxs
+
+    def sampling_distribution(self):
+        p = self.priorities[: self.cur_size]
+        p = np.exp(self.alpha * (p - np.max(p)))
+        norm = np.sum(p)
+        if norm > 0:
+            uniform = 0.0
+            p = p / norm * (1 - uniform) + 1.0 / self.cur_size * uniform
+        else:
+            p = np.ones(self.cur_size) / self.cur_size
+        return p
+
+    def get_batch(self, n):
+        """Get batch of episodes to train on."""
+        p = self.sampling_distribution()
+        idxs = np.random.choice(self.cur_size, size=int(n), replace=False, p=p)
+        self.last_batch = idxs
+        batch_dicts = [self.buffer[idx] for idx in idxs]
+        batch_out = {}
+        for entry in batch_dicts:
+            for key in entry:
+                if key in batch_out:
+                    batch_out[key].append(entry[key])
+                else:
+                    batch_out[key] = [entry[key]]
+
+        for key in batch_out:
+            batch_out[key] = np.array(batch_out[key])
+
+        total_priority = np.sum(self.priorities)
+        beta = 0.6
+        is_weights = np.power(
+            self.cur_size * (self.priorities[idxs] / total_priority), beta
+        )
+        is_weights /= is_weights.max()
+        return batch_out, self.priorities[idxs], is_weights
+
+    def update_last_batch(self, delta):
+        """Update last batch idxs with new priority."""
+        self.priorities[self.last_batch] = np.abs(delta)
+        self.priorities[0 : self.init_length] = np.max(
+            self.priorities[self.init_length :]
+        )
