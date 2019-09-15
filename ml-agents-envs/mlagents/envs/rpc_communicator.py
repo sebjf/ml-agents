@@ -51,10 +51,10 @@ class RpcCommunicator(Communicator):
         """
         Creates the GRPC server.
         """
-        self.check_port(self.port)
+        self.check_port('', self.port)
 
         try:
-            # Establish communication grpc
+            # Establish communication grpccon
             self.server = grpc.server(ThreadPoolExecutor(max_workers=10))
             self.unity_to_external = UnityToExternalServicerImplementation()
             add_UnityToExternalServicer_to_server(self.unity_to_external, self.server)
@@ -66,13 +66,13 @@ class RpcCommunicator(Communicator):
         except Exception:
             raise UnityWorkerInUseException(self.worker_id)
 
-    def check_port(self, port):
+    def check_port(self, host, port):
         """
         Attempts to bind to the requested communicator port, checking if it is already in use.
         """
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            s.bind(("localhost", port))
+            s.bind((host, port))
         except socket.error:
             raise UnityWorkerInUseException(self.worker_id)
         finally:
