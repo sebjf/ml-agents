@@ -44,7 +44,7 @@ namespace MLAgents
 # if UNITY_EDITOR || UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX
             m_IsOpen = true;
             var channel = new Channel(
-                "localhost:" + m_CommunicatorParameters.port,
+                m_CommunicatorParameters.host, m_CommunicatorParameters.port,
                 ChannelCredentials.Insecure);
 
             m_Client = new UnityToExternal.UnityToExternalClient(channel);

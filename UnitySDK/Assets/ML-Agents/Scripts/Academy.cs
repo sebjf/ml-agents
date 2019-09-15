@@ -253,20 +253,35 @@ namespace MLAgents
             InitializeEnvironment();
         }
 
+        private struct Args
+        {
+            public string host;
+            public int port;
+        }
+
         // Used to read Python-provided environment parameters
-        private int ReadArgs()
+        private Args ReadArgs()
         {
             var args = System.Environment.GetCommandLineArgs();
-            var inputPort = "";
+
+            var parms = new Args();
+            parms.host = "localhost";
+            parms.port = 5005;
+
             for (var i = 0; i < args.Length; i++)
             {
                 if (args[i] == "--port")
                 {
-                    inputPort = args[i + 1];
+                    parms.port = int.Parse(args[i + 1]);
+                }
+
+                if(args[i] == "--host")
+                {
+                    parms.host = args[i + 1];
                 }
             }
 
-            return int.Parse(inputPort);
+            return parms;
         }
 
         /// <summary>
@@ -293,10 +308,12 @@ namespace MLAgents
             // Try to launch the communicator by usig the arguments passed at launch
             try
             {
+                var args = ReadArgs();
                 communicator = new RpcCommunicator(
                     new CommunicatorParameters
                     {
-                        port = ReadArgs()
+                        host = args.host,
+                        port = args.port
                     });
             }
             // If it fails, we check if there are any external brains in the scene
@@ -311,6 +328,7 @@ namespace MLAgents
                     communicator = new RpcCommunicator(
                         new CommunicatorParameters
                         {
+                            host = "localhost",
                             port = 5005
                         });
                 }

@@ -5,6 +5,7 @@ namespace MLAgents
 {
     public struct CommunicatorParameters
     {
+        public string host;
         public int port;
     }
 
