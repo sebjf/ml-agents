@@ -1,3 +1,4 @@
+
 # Training ML-Agents
 
 The ML-Agents toolkit conducts training using an external Python training
@@ -149,6 +150,7 @@ environment, you can set the following command line options when invoking
   details.
 * `--debug`: Specify this option to enable debug-level logging for some parts of the code.
 * `--multi-gpu`: Setting this flag enables the use of multiple GPU's (if available) during training.
+* `--launcher=<cmd>`: Shell command to start the Unity environment instances when ready for them to connect. The command should start `num-envs` instances. May be unspecified or specified as an empty string, in which case no command is executed and it is assumed the user will start the instances via another mechanism.
 
 ### Training Config File
 

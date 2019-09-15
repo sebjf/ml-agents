@@ -61,6 +61,11 @@ def run_training(
         run_options["--sampler"] if run_options["--sampler"] != "None" else None
     )
 
+    # Launcher Parameters
+    launcher_path = run_options["--launcher"] if run_options["--launcher"] != "None" else None
+
+    editor_training = launcher_path is None and env_path is None
+
     # Recognize and use docker volume if one is passed as an argument
     if not docker_target_name:
         model_path = "./models/{run_id}-{sub_id}".format(run_id=run_id, sub_id=sub_id)
@@ -86,11 +91,16 @@ def run_training(
     env_factory = create_environment_factory(
         env_path,
         docker_target_name,
+        editor_training,
         no_graphics,
         run_seed,
         base_port + (sub_id * num_envs),
     )
     env = SubprocessEnvManager(env_factory, num_envs)
+
+    if launcher_path is not None and len(launcher_path) > 0:
+        os.system(launcher_path)
+
     maybe_meta_curriculum = try_create_meta_curriculum(curriculum_folder, env, lesson)
     sampler_manager, resampling_interval = create_sampler_manager(
         sampler_file_path, env.reset_parameters, run_seed
@@ -219,6 +229,7 @@ def load_config(trainer_config_path: str) -> Dict[str, Any]:
 def create_environment_factory(
     env_path: str,
     docker_target_name: str,
+    editor_training: bool,
     no_graphics: bool,
     seed: Optional[int],
     start_port: int,
@@ -255,6 +266,7 @@ def create_environment_factory(
             worker_id=worker_id,
             seed=env_seed,
             docker_training=docker_training,
+            editor_training=editor_training,
             no_graphics=no_graphics,
             base_port=start_port,
         )
@@ -310,6 +322,7 @@ def main():
       --debug                     Whether to run ML-Agents in debug mode with detailed logging [default: False].
       --multi-gpu                 Setting this flag enables the use of multiple GPU's (if available) during training
                                   [default: False].
+      --launcher=<cmd>            Shell command to start external training environments [default: None].
     """
 
     options = docopt(_USAGE)

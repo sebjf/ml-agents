@@ -48,6 +48,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         base_port: int = 5005,
         seed: int = 0,
         docker_training: bool = False,
+        editor_training: bool = False,
         no_graphics: bool = False,
         timeout_wait: int = 30,
         args: list = [],
@@ -69,6 +70,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 
         atexit.register(self._close)
         self.port = base_port + worker_id
+        self.editor_training = editor_training
         self._buffer_size = 12000
         self._version_ = "API-9"
         self._loaded = (
@@ -80,17 +82,9 @@ class UnityEnvironment(BaseUnityEnvironment):
         self.communicator = self.get_communicator(worker_id, base_port, timeout_wait)
         self.worker_id = worker_id
 
-        # If the environment name is None, a new environment will not be launched
-        # and the communicator will directly try to connect to an existing unity environment.
-        # If the worker-id is not 0 and the environment name is None, an error is thrown
-        if file_name is None and worker_id != 0:
-            raise UnityEnvironmentException(
-                "If the environment name is None, "
-                "the worker-id must be 0 in order to connect with the Editor."
-            )
         if file_name is not None:
             self.executable_launcher(file_name, docker_training, no_graphics, args)
-        else:
+        elif self.editor_training:
             logger.info(
                 "Start training by pressing the Play button in the Unity Editor."
             )
