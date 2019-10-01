@@ -253,7 +253,7 @@ namespace MLAgents
                     parms.port = int.Parse(args[i + 1]);
                 }
 
-                if(args[i] == "--host")
+                if (args[i] == "--host")
                 {
                     parms.host = args[i + 1];
                 }
@@ -283,8 +283,9 @@ namespace MLAgents
                 brain.SetToControlledExternally();
             }
 
-            // Try to launch the communicator by usig the arguments passed at launch
-            try
+            communicator = null;
+
+            if (controlledBrains.ToList().Count > 0)
             {
                 var args = ReadArgs();
                 communicator = new RpcCommunicator(
@@ -293,23 +294,6 @@ namespace MLAgents
                         host = args.host,
                         port = args.port
                     });
-            }
-            // If it fails, we check if there are any external brains in the scene
-            // If there are : Launch the communicator on the default port
-            // If there arn't, there is no need for a communicator and it is set
-            // to null
-            catch
-            {
-                communicator = null;
-                if (controlledBrains.ToList().Count > 0)
-                {
-                    communicator = new RpcCommunicator(
-                        new CommunicatorParameters
-                        {
-                            host = "localhost",
-                            port = 5005
-                        });
-                }
             }
 
             m_BrainBatcher = new Batcher(communicator);
