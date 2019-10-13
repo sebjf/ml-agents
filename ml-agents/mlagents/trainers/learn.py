@@ -38,6 +38,7 @@ class CommandLineOptions(NamedTuple):
     save_freq: int
     keep_checkpoints: int
     base_port: int
+    timeout: int
     num_envs: int
     curriculum_folder: Optional[str]
     lesson: int
@@ -159,7 +160,13 @@ def parse_command_line(argv: Optional[List[str]] = None) -> CommandLineOptions:
         "--launcher",
         default=None,
         dest="launcher",
-        help="Shell command to start external training environments."
+        help="Shell command to start external training environments.",
+    )
+    parser.add_argument(
+        "--timeout",
+        default=30,
+        type=int,
+        help="Length of time to wait for worker environment to connect.",
     )
     parser.add_argument(
         "--env-args",
@@ -224,6 +231,7 @@ def run_training(
         options.no_graphics,
         run_seed,
         options.base_port + (sub_id * options.num_envs),
+        options.timeout,
         options.env_args,
     )
     env = SubprocessEnvManager(env_factory, options.num_envs)
@@ -349,6 +357,7 @@ def create_environment_factory(
     no_graphics: bool,
     seed: Optional[int],
     start_port: int,
+    timeout_wait: int,
     env_args: Optional[List[str]],
 ) -> Callable[[int], BaseUnityEnvironment]:
     if env_path is not None:
@@ -386,6 +395,7 @@ def create_environment_factory(
             editor_training=editor_training,
             no_graphics=no_graphics,
             base_port=start_port,
+            timeout_wait=timeout_wait,
             args=env_args,
         )
 
