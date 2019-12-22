@@ -2,11 +2,11 @@ import os
 import json
 import math
 
-from .exception import CurriculumError
+from .exception import CurriculumConfigError, CurriculumLoadingError
 
 import logging
 
-logger = logging.getLogger('mlagents.trainers')
+logger = logging.getLogger("mlagents.trainers")
 
 
 class Curriculum(object):
@@ -22,41 +22,40 @@ class Curriculum(object):
         self._lesson_num = 0
         # The name of the brain should be the basename of the file without the
         # extension.
-        self._brain_name = os.path.basename(location).split('.')[0]
+        self._brain_name = os.path.basename(location).split(".")[0]
+        self.data = Curriculum.load_curriculum_file(location)
 
-        try:
-            with open(location) as data_file:
-                self.data = json.load(data_file)
-        except IOError:
-            raise CurriculumError(
-                'The file {0} could not be found.'.format(location))
-        except UnicodeDecodeError:
-            raise CurriculumError('There was an error decoding {}'
-                                  .format(location))
         self.smoothing_value = 0
-        for key in ['parameters', 'measure', 'thresholds',
-                    'min_lesson_length', 'signal_smoothing']:
+        for key in [
+            "parameters",
+            "measure",
+            "thresholds",
+            "min_lesson_length",
+            "signal_smoothing",
+        ]:
             if key not in self.data:
-                raise CurriculumError("{0} does not contain a "
-                                      "{1} field."
-                                      .format(location, key))
+                raise CurriculumConfigError(
+                    "{0} does not contain a " "{1} field.".format(location, key)
+                )
         self.smoothing_value = 0
-        self.measure = self.data['measure']
-        self.min_lesson_length = self.data['min_lesson_length']
-        self.max_lesson_num = len(self.data['thresholds'])
+        self.measure = self.data["measure"]
+        self.min_lesson_length = self.data["min_lesson_length"]
+        self.max_lesson_num = len(self.data["thresholds"])
 
-        parameters = self.data['parameters']
+        parameters = self.data["parameters"]
         for key in parameters:
             if key not in default_reset_parameters:
-                raise CurriculumError(
-                    'The parameter {0} in Curriculum {1} is not present in '
-                    'the Environment'.format(key, location))
+                raise CurriculumConfigError(
+                    "The parameter {0} in Curriculum {1} is not present in "
+                    "the Environment".format(key, location)
+                )
             if len(parameters[key]) != self.max_lesson_num + 1:
-                raise CurriculumError(
-                    'The parameter {0} in Curriculum {1} must have {2} values '
-                    'but {3} were found'.format(key, location,
-                                                self.max_lesson_num + 1,
-                                                len(parameters[key])))
+                raise CurriculumConfigError(
+                    "The parameter {0} in Curriculum {1} must have {2} values "
+                    "but {3} were found".format(
+                        key, location, self.max_lesson_num + 1, len(parameters[key])
+                    )
+                )
 
     @property
     def lesson_num(self):
@@ -75,21 +74,23 @@ class Curriculum(object):
         """
         if not self.data or not measure_val or math.isnan(measure_val):
             return False
-        if self.data['signal_smoothing']:
+        if self.data["signal_smoothing"]:
             measure_val = self.smoothing_value * 0.25 + 0.75 * measure_val
             self.smoothing_value = measure_val
         if self.lesson_num < self.max_lesson_num:
-            if measure_val > self.data['thresholds'][self.lesson_num]:
+            if measure_val > self.data["thresholds"][self.lesson_num]:
                 self.lesson_num += 1
                 config = {}
-                parameters = self.data['parameters']
+                parameters = self.data["parameters"]
                 for key in parameters:
                     config[key] = parameters[key][self.lesson_num]
-                logger.info('{0} lesson changed. Now in lesson {1}: {2}'
-                            .format(self._brain_name,
-                                    self.lesson_num,
-                                    ', '.join([str(x) + ' -> ' + str(config[x])
-                                        for x in config])))
+                logger.info(
+                    "{0} lesson changed. Now in lesson {1}: {2}".format(
+                        self._brain_name,
+                        self.lesson_num,
+                        ", ".join([str(x) + " -> " + str(config[x]) for x in config]),
+                    )
+                )
                 return True
         return False
 
@@ -106,7 +107,31 @@ class Curriculum(object):
             lesson = self.lesson_num
         lesson = max(0, min(lesson, self.max_lesson_num))
         config = {}
-        parameters = self.data['parameters']
+        parameters = self.data["parameters"]
         for key in parameters:
             config[key] = parameters[key][lesson]
         return config
+
+    @staticmethod
+    def load_curriculum_file(location):
+        try:
+            with open(location) as data_file:
+                return Curriculum._load_curriculum(data_file)
+        except IOError:
+            raise CurriculumLoadingError(
+                "The file {0} could not be found.".format(location)
+            )
+        except UnicodeDecodeError:
+            raise CurriculumLoadingError(
+                "There was an error decoding {}".format(location)
+            )
+
+    @staticmethod
+    def _load_curriculum(fp):
+        try:
+            return json.load(fp)
+        except json.decoder.JSONDecodeError as e:
+            raise CurriculumLoadingError(
+                "Error parsing JSON file. Please check for formatting errors. "
+                "A tool such as https://jsonlint.com/ can be helpful with this."
+            ) from e

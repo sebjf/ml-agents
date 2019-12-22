@@ -1,20 +1,30 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace MLAgents
 {
-
     /// <summary>
     /// Ray perception component. Attach this to agents to enable "local perception"
-    /// via the use of ray casts directed outward from the agent. 
+    /// via the use of ray casts directed outward from the agent.
     /// </summary>
     public class RayPerception3D : RayPerception
     {
-        Vector3 endPosition;
-        RaycastHit hit;
+        Vector3 m_EndPosition;
+        RaycastHit m_Hit;
+        private float[] m_SubList;
 
         /// <summary>
         /// Creates perception vector to be used as part of an observation of an agent.
+        /// Each ray in the rayAngles array adds a sublist of data to the observation.
+        /// The sublist contains the observation data for a single ray. The list is composed of the following:
+        /// 1. A one-hot encoding for detectable objects. For example, if detectableObjects.Length = n, the
+        ///    first n elements of the sublist will be a one-hot encoding of the detectableObject that was hit, or
+        ///    all zeroes otherwise.
+        /// 2. The 'length' element of the sublist will be 1 if the ray missed everything, or 0 if it hit
+        ///    something (detectable or not).
+        /// 3. The 'length+1' element of the sublist will contain the normalised distance to the object hit.
+        /// NOTE: Only objects with tags in the detectableObjects array will have a distance set.
         /// </summary>
         /// <returns>The partial vector observation corresponding to the set of rays</returns>
         /// <param name="rayDistance">Radius of rays</param>
@@ -26,44 +36,50 @@ namespace MLAgents
             float[] rayAngles, string[] detectableObjects,
             float startOffset, float endOffset)
         {
-            perceptionBuffer.Clear();
+            if (m_SubList == null || m_SubList.Length != detectableObjects.Length + 2)
+                m_SubList = new float[detectableObjects.Length + 2];
+
+            m_PerceptionBuffer.Clear();
+            m_PerceptionBuffer.Capacity = m_SubList.Length * rayAngles.Length;
+
             // For each ray sublist stores categorical information on detected object
             // along with object distance.
-            foreach (float angle in rayAngles)
+            foreach (var angle in rayAngles)
             {
-                endPosition = transform.TransformDirection(
+                m_EndPosition = transform.TransformDirection(
                     PolarToCartesian(rayDistance, angle));
-                endPosition.y = endOffset;
+                m_EndPosition.y = endOffset;
                 if (Application.isEditor)
                 {
                     Debug.DrawRay(transform.position + new Vector3(0f, startOffset, 0f),
-                        endPosition, Color.black, 0.01f, true);
+                        m_EndPosition, Color.black, 0.01f, true);
                 }
 
-                float[] subList = new float[detectableObjects.Length + 2];
+                Array.Clear(m_SubList, 0, m_SubList.Length);
+
                 if (Physics.SphereCast(transform.position +
-                                       new Vector3(0f, startOffset, 0f), 0.5f,
-                    endPosition, out hit, rayDistance))
+                    new Vector3(0f, startOffset, 0f), 0.5f,
+                    m_EndPosition, out m_Hit, rayDistance))
                 {
-                    for (int i = 0; i < detectableObjects.Length; i++)
+                    for (var i = 0; i < detectableObjects.Length; i++)
                     {
-                        if (hit.collider.gameObject.CompareTag(detectableObjects[i]))
+                        if (m_Hit.collider.gameObject.CompareTag(detectableObjects[i]))
                         {
-                            subList[i] = 1;
-                            subList[detectableObjects.Length + 1] = hit.distance / rayDistance;
+                            m_SubList[i] = 1;
+                            m_SubList[detectableObjects.Length + 1] = m_Hit.distance / rayDistance;
                             break;
                         }
                     }
                 }
                 else
                 {
-                    subList[detectableObjects.Length] = 1f;
+                    m_SubList[detectableObjects.Length] = 1f;
                 }
 
-                perceptionBuffer.AddRange(subList);
+                Utilities.AddRangeNoAlloc(m_PerceptionBuffer, m_SubList);
             }
 
-            return perceptionBuffer;
+            return m_PerceptionBuffer;
         }
 
         /// <summary>
@@ -71,10 +87,9 @@ namespace MLAgents
         /// </summary>
         public static Vector3 PolarToCartesian(float radius, float angle)
         {
-            float x = radius * Mathf.Cos(DegreeToRadian(angle));
-            float z = radius * Mathf.Sin(DegreeToRadian(angle));
+            var x = radius * Mathf.Cos(DegreeToRadian(angle));
+            var z = radius * Mathf.Sin(DegreeToRadian(angle));
             return new Vector3(x, 0f, z);
         }
-
     }
 }

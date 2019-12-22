@@ -1,4 +1,5 @@
 import numpy as np
+import h5py
 
 from mlagents.envs.exception import UnityException
 
@@ -7,6 +8,7 @@ class BufferException(UnityException):
     """
     Related to errors with the Buffer.
     """
+
     pass
 
 
@@ -37,9 +39,9 @@ class Buffer(dict):
 
             def append(self, element, padding_value=0):
                 """
-                Adds an element to this list. Also lets you change the padding 
+                Adds an element to this list. Also lets you change the padding
                 type, so that it can be set on append (e.g. action_masks should
-                be padded with 1.) 
+                be padded with 1.)
                 :param element: The element to append to the list.
                 :param padding_value: The value used to pad when get_batch is called.
                 """
@@ -74,54 +76,49 @@ class Buffer(dict):
                 sequential=True gives [[0,a],[b,c],[d,e]]. If sequential=False gives
                 [[a,b],[b,c],[c,d],[d,e]]
                 """
-                if training_length == 1:
-                    # When the training length is 1, the method returns a list of elements,
-                    # not a list of sequences of elements.
+                if sequential:
+                    # The sequences will not have overlapping elements (this involves padding)
+                    leftover = len(self) % training_length
+                    # leftover is the number of elements in the first sequence (this sequence might need 0 padding)
                     if batch_size is None:
-                        # If batch_size is None : All the elements of the AgentBufferField are returned.
-                        return np.array(self)
-                    else:
-                        # return the batch_size last elements
-                        if batch_size > len(self):
-                            raise BufferException("Batch size requested is too large")
-                        return np.array(self[-batch_size:])
-                else:
-                    # The training_length is not None, the method returns a list of SEQUENCES of elements
-                    if not sequential:
-                        # The sequences will have overlapping elements
-                        if batch_size is None:
-                            # retrieve the maximum number of elements
-                            batch_size = len(self) - training_length + 1
-                        # The number of sequences of length training_length taken from a list of len(self) elements
-                        # with overlapping is equal to batch_size
-                        if (len(self) - training_length + 1) < batch_size:
-                            raise BufferException("The batch size and training length requested for get_batch where"
-                                                  " too large given the current number of data points.")
-                        tmp_list = []
-                        for end in range(len(self) - batch_size + 1, len(self) + 1):
-                            tmp_list += [np.array(self[end - training_length:end])]
-                        return np.array(tmp_list)
-                    if sequential:
-                        # The sequences will not have overlapping elements (this involves padding)
-                        leftover = len(self) % training_length
-                        # leftover is the number of elements in the first sequence (this sequence might need 0 padding)
-                        if batch_size is None:
-                            # retrieve the maximum number of elements
-                            batch_size = len(self) // training_length + 1 * (leftover != 0)
-                        # The maximum number of sequences taken from a list of length len(self) without overlapping
-                        # with padding is equal to batch_size
-                        if batch_size > (len(self) // training_length + 1 * (leftover != 0)):
-                            raise BufferException("The batch size and training length requested for get_batch where"
-                                                  " too large given the current number of data points.")
-                        tmp_list = []
+                        # retrieve the maximum number of elements
+                        batch_size = len(self) // training_length + 1 * (leftover != 0)
+                    # The maximum number of sequences taken from a list of length len(self) without overlapping
+                    # with padding is equal to batch_size
+                    if batch_size > (
+                        len(self) // training_length + 1 * (leftover != 0)
+                    ):
+                        raise BufferException(
+                            "The batch size and training length requested for get_batch where"
+                            " too large given the current number of data points."
+                        )
+                    if batch_size * training_length > len(self):
                         padding = np.array(self[-1]) * self.padding_value
-                        # The padding is made with zeros and its shape is given by the shape of the last element
-                        for end in range(len(self), len(self) % training_length, -training_length)[:batch_size]:
-                            tmp_list += [np.array(self[end - training_length:end])]
-                        if (leftover != 0) and (len(tmp_list) < batch_size):
-                            tmp_list += [np.array([padding] * (training_length - leftover) + self[:leftover])]
-                        tmp_list.reverse()
-                        return np.array(tmp_list)
+                        return np.array(
+                            [padding] * (training_length - leftover) + self[:],
+                            dtype=np.float32,
+                        )
+                    else:
+                        return np.array(
+                            self[len(self) - batch_size * training_length :],
+                            dtype=np.float32,
+                        )
+                else:
+                    # The sequences will have overlapping elements
+                    if batch_size is None:
+                        # retrieve the maximum number of elements
+                        batch_size = len(self) - training_length + 1
+                    # The number of sequences of length training_length taken from a list of len(self) elements
+                    # with overlapping is equal to batch_size
+                    if (len(self) - training_length + 1) < batch_size:
+                        raise BufferException(
+                            "The batch size and training length requested for get_batch where"
+                            " too large given the current number of data points."
+                        )
+                    tmp_list = []
+                    for end in range(len(self) - batch_size + 1, len(self) + 1):
+                        tmp_list += self[end - training_length : end]
+                    return np.array(tmp_list, dtype=np.float32)
 
             def reset_field(self):
                 """
@@ -135,7 +132,9 @@ class Buffer(dict):
             super(Buffer.AgentBuffer, self).__init__()
 
         def __str__(self):
-            return ", ".join(["'{0}' : {1}".format(k, str(self[k])) for k in self.keys()])
+            return ", ".join(
+                ["'{0}' : {1}".format(k, str(self[k])) for k in self.keys()]
+            )
 
         def reset_agent(self):
             """
@@ -160,18 +159,17 @@ class Buffer(dict):
             """
             if len(key_list) < 2:
                 return True
-            l = None
+            length = None
             for key in key_list:
                 if key not in self.keys():
                     return False
-                if (l is not None) and (l != len(self[key])):
+                if (length is not None) and (length != len(self[key])):
                     return False
-                l = len(self[key])
+                length = len(self[key])
             return True
 
-        def shuffle(self, key_list=None):
+        def shuffle(self, sequence_length, key_list=None):
             """
-            Shuffles the fields in key_list in a consistent way: The reordering will
             Shuffles the fields in key_list in a consistent way: The reordering will
             be the same across fields.
             :param key_list: The fields that must be shuffled.
@@ -179,11 +177,16 @@ class Buffer(dict):
             if key_list is None:
                 key_list = list(self.keys())
             if not self.check_length(key_list):
-                raise BufferException("Unable to shuffle if the fields are not of same length")
-            s = np.arange(len(self[key_list[0]]))
+                raise BufferException(
+                    "Unable to shuffle if the fields are not of same length"
+                )
+            s = np.arange(len(self[key_list[0]]) // sequence_length)
             np.random.shuffle(s)
             for key in key_list:
-                self[key][:] = [self[key][i] for i in s]
+                tmp = []
+                for i in s:
+                    tmp += self[key][i * sequence_length : (i + 1) * sequence_length]
+                self[key][:] = tmp
 
         def make_mini_batch(self, start, end):
             """
@@ -194,18 +197,60 @@ class Buffer(dict):
             """
             mini_batch = {}
             for key in self:
-                mini_batch[key] = np.array(self[key][start:end])
+                mini_batch[key] = self[key][start:end]
             return mini_batch
+
+        def sample_mini_batch(self, batch_size, sequence_length=1):
+            """
+            Creates a mini-batch from a random start and end.
+            :param batch_size: number of elements to withdraw.
+            :param sequence_length: Length of sequences to sample.
+                Number of sequences to sample will be batch_size/sequence_length.
+            """
+            num_seq_to_sample = batch_size // sequence_length
+            mini_batch = Buffer.AgentBuffer()
+            buff_len = len(next(iter(self.values())))
+            num_sequences_in_buffer = buff_len // sequence_length
+            start_idxes = (
+                np.random.randint(num_sequences_in_buffer, size=num_seq_to_sample)
+                * sequence_length
+            )  # Sample random sequence starts
+            for i in start_idxes:
+                for key in self:
+                    mini_batch[key].extend(self[key][i : i + sequence_length])
+            return mini_batch
+
+        def save_to_file(self, file_object):
+            """
+            Saves the AgentBuffer to a file-like object.
+            """
+            with h5py.File(file_object) as write_file:
+                for key, data in self.items():
+                    write_file.create_dataset(
+                        key, data=data, dtype="f", compression="gzip"
+                    )
+
+        def load_from_file(self, file_object):
+            """
+            Loads the AgentBuffer from a file-like object.
+            """
+            with h5py.File(file_object) as read_file:
+                for key in list(read_file.keys()):
+                    self[key] = Buffer.AgentBuffer.AgentBufferField()
+                    # extend() will convert the numpy array's first dimension into list
+                    self[key].extend(read_file[key][()])
 
     def __init__(self):
         self.update_buffer = self.AgentBuffer()
         super(Buffer, self).__init__()
 
     def __str__(self):
-        return "update buffer :\n\t{0}\nlocal_buffers :\n{1}".format(str(self.update_buffer),
-                                                                     '\n'.join(
-                                                                         ['\tagent {0} :{1}'.format(k, str(self[k])) for
-                                                                          k in self.keys()]))
+        return "update buffer :\n\t{0}\nlocal_buffers :\n{1}".format(
+            str(self.update_buffer),
+            "\n".join(
+                ["\tagent {0} :{1}".format(k, str(self[k])) for k in self.keys()]
+            ),
+        )
 
     def __getitem__(self, key):
         if key not in self.keys():
@@ -218,6 +263,23 @@ class Buffer(dict):
         """
         self.update_buffer.reset_agent()
 
+    def truncate_update_buffer(self, max_length, sequence_length=1):
+        """
+        Truncates the update buffer to a certain length.
+
+        This can be slow for large buffers. We compensate by cutting further than we need to, so that
+        we're not truncating at each update. Note that we must truncate an integer number of sequence_lengths
+        param: max_length: The length at which to truncate the buffer.
+        """
+        current_length = len(next(iter(self.update_buffer.values())))
+        # make max_length an integer number of sequence_lengths
+        max_length -= max_length % sequence_length
+        if current_length > max_length:
+            for _key in self.update_buffer.keys():
+                self.update_buffer[_key] = self.update_buffer[_key][
+                    current_length - max_length :
+                ]
+
     def reset_local_buffers(self):
         """
         Resets all the local local_buffers
@@ -226,7 +288,9 @@ class Buffer(dict):
         for k in agent_ids:
             self[k].reset_agent()
 
-    def append_update_buffer(self, agent_id, key_list=None, batch_size=None, training_length=None):
+    def append_update_buffer(
+        self, agent_id, key_list=None, batch_size=None, training_length=None
+    ):
         """
         Appends the buffer of an agent to the update buffer.
         :param agent_id: The id of the agent which data will be appended
@@ -237,14 +301,21 @@ class Buffer(dict):
         if key_list is None:
             key_list = self[agent_id].keys()
         if not self[agent_id].check_length(key_list):
-            raise BufferException("The length of the fields {0} for agent {1} where not of same length"
-                                  .format(key_list, agent_id))
+            raise BufferException(
+                "The length of the fields {0} for agent {1} where not of same length".format(
+                    key_list, agent_id
+                )
+            )
         for field_key in key_list:
             self.update_buffer[field_key].extend(
-                self[agent_id][field_key].get_batch(batch_size=batch_size, training_length=training_length)
+                self[agent_id][field_key].get_batch(
+                    batch_size=batch_size, training_length=training_length
+                )
             )
 
-    def append_all_agent_batch_to_update_buffer(self, key_list=None, batch_size=None, training_length=None):
+    def append_all_agent_batch_to_update_buffer(
+        self, key_list=None, batch_size=None, training_length=None
+    ):
         """
         Appends the buffer of all agents to the update buffer.
         :param key_list: The fields that must be added. If None: all fields will be appended.

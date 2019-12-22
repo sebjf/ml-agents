@@ -10,13 +10,8 @@ support.
 
 A pre-configured virtual machine image is available in the Azure Marketplace and
 is nearly completely ready for training.  You can start by deploying the
-[Data Science Virtual Machine for Linux (Ubuntu)](https://azuremarketplace.microsoft.com/marketplace/apps/microsoft-ads.linux-data-science-vm-ubuntu)
-into your Azure subscription.  Once your VM is deployed, SSH into it and run the
-following command to complete dependency installation:
-
-```sh
-pip3 install docopt
-```
+[Data Science Virtual Machine for Linux (Ubuntu)](https://azuremarketplace.microsoft.com/en-us/marketplace/apps/microsoft-dsvm.linux-data-science-vm-ubuntu)
+into your Azure subscription.
 
 Note that, if you choose to deploy the image to an
 [N-Series GPU optimized VM](https://docs.microsoft.com/azure/virtual-machines/linux/sizes-gpu),
@@ -66,7 +61,7 @@ To run your training on the VM:
 
 1. [Move](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/copy-files-to-linux-vm-using-scp)
     your built Unity application to your Virtual Machine.
-2. Set the the directory where the ML-Agents Toolkit was installed to your
+2. Set the directory where the ML-Agents Toolkit was installed to your
    working directory.
 3. Run the following command:
 
