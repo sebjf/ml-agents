@@ -17,7 +17,6 @@ class UnityGymException(error.Error):
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gym_unity")
 
-
 class UnityEnv(gym.Env):
     """
     Provides Gym wrapper for Unity Learning Environments.
@@ -292,11 +291,6 @@ class UnityEnv(gym.Env):
             raise UnityGymException(
                 "The environment was launched as a single-agent environment, however"
                 "there is more than one agent in the scene."
-            )
-        elif self._multiagent and n_agents <= 1:
-            raise UnityGymException(
-                "The environment was launched as a mutli-agent environment, however"
-                "there is only one agent in the scene."
             )
         if self._n_agents is None:
             self._n_agents = n_agents
