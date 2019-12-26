@@ -33,7 +33,7 @@ class PlotManager:
         frame.rewards = individual.rewards[:,-1]
         frame.fitness = individual.fitness
         frame.step = individual.stepcount
-        self.frames.put(frame) 
+        self.frames.put(frame)
 
     def begin_worker(self):
         def worker(): # https://stackoverflow.com/questions/18791722/can-you-plot-live-data-in-matplotlib
@@ -53,17 +53,22 @@ class PlotManager:
                 individual = frame.individual
                 lateststepcount = max(lateststepcount,frame.step)
 
+                class Series(object):
+                    pass
+
                 if individual not in series:
-                    series[frame.individual] = plt.scatter([],[])
+                    series[frame.individual] = Series()
+                    series[frame.individual].rewardsplot = plt.scatter([],[])
+                    series[frame.individual].fitnessplot, = plt.plot([],[])
                     
-                dataseries = series[individual]
+                # update the rewards
+
+                dataseries = series[individual].rewardsplot
 
                 x = np.repeat(frame.step, frame.rewards.shape[0])
                 y = frame.rewards
                 a = np.vstack((x,y))
                 b = np.transpose(a)
-
-                
 
                 existing = dataseries.get_offsets() # https://stackoverflow.com/questions/40686697/python-matplotlib-update-scatter
                 if existing.size > 0:
@@ -72,6 +77,16 @@ class PlotManager:
                     dataseries.set_offsets(b)
 
                 maxy = max((maxy, y.max()))
+
+                # update the fitness
+
+                dataseries = series[individual].fitnessplot
+
+                dataseries.set_xdata(np.append(dataseries.get_xdata(), frame.step))
+                dataseries.set_ydata(np.append(dataseries.get_ydata(), frame.fitness))
+
+                maxy = max((maxy, dataseries.get_ydata().max()))
+                
                 plt.ylim(-1,maxy)
                 plt.xlim(0,lateststepcount)
 
