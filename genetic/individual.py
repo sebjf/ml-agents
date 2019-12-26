@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import gym
+from timeit import default_timer as timer
 
 class Individual:
     def create_model(self):
@@ -36,6 +37,7 @@ class Individual:
         self.fitness = 0
         self.rewards = None
         self.stepcount = 0
+        self.starttime = timer()
         observations = env.reset()
         while True:
             actions = self.evaluate_model(observations)
@@ -65,3 +67,5 @@ class Individual:
 
         if self.step_callback is not None:
             self.step_callback(self)
+
+        self.endtime = timer()
