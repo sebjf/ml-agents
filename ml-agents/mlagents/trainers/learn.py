@@ -392,7 +392,6 @@ def create_environment_factory(
             worker_id=worker_id,
             seed=env_seed,
             docker_training=docker_training,
-            editor_training=editor_training,
             no_graphics=no_graphics,
             base_port=start_port,
             timeout_wait=timeout_wait,
