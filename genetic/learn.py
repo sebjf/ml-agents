@@ -1,36 +1,37 @@
 
-from individual import Individual
-from env_manager import EnvManager
-from instrumentation import PlotManager
-import tensorflow as tf
+if __name__ == '__main__':    
 
-maxSteps = 500
-counter = 0
-logdir = "summariesga/run1/"
+    from individual import Individual
+    from env_manager import EnvManager
+    from instrumentation import PlotManager
 
-generation = []
+    maxSteps = 500
+    counter = 0
+    logdir = "summariesga/run1/"
 
-for _ in range(0,4):
-    generation.append(Individual().mutate(0.5))
+    generation = []
 
-envmanager = EnvManager("envs/Windows/PoD.exe", 4, maxSteps)
-envmanager.start_workers()
+    for _ in range(0,8):
+        generation.append(Individual(max_steps=maxSteps).mutate(0.5))
 
-plots = PlotManager()
-#plots.begin_worker()
-#plots.instrument_individuals(generation)
+    envmanager = EnvManager("envs/Windows/PoD.exe", 8, maxSteps)
+    envmanager.start_workers()
 
-for gid in range(0,5):
-    envmanager.test_generation(generation)
-    envmanager.wait()
+    plots = PlotManager()
+    #plots.begin_worker()
+    #plots.instrument_individuals(generation)
 
-    generation.sort(key=lambda x: x.fitness, reverse=True)
+    for gid in range(0,5):
+        envmanager.test_generation(generation)
+        envmanager.wait()
 
-    for g in generation:
-        print("Fitness (" + str(gid) + "): " + str(g.fitness) + " " + "Elapsed: " + str(g.endtime-g.starttime))
+        generation.sort(key=lambda x: x.fitness, reverse=True)
 
-    for i in range(1,len(generation)):
-        generation[i].mutate(0.25)
+        for g in generation:
+            print("Fitness (" + str(gid) + "): " + str(g.fitness) + " " + "Elapsed: " + str(g.endtime-g.starttime))
 
-envmanager.close()
-plots.close()
+        for i in range(1,len(generation)):
+            generation[i].mutate(0.25)
+
+    envmanager.close()
+    plots.close()

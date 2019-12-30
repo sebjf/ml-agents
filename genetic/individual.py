@@ -1,46 +1,45 @@
 import numpy as np
-import tensorflow as tf
 import gym
 from timeit import default_timer as timer
 
 class Individual:
-    def create_model(self):
-        inputs = tf.keras.Input(shape=(44,)) #=env.observation_space.shape
-        x = tf.keras.layers.Dense(64, activation='relu')(inputs)
-        outputs = tf.keras.layers.Dense(2, activation='relu')(x)
-        model = tf.keras.Model(inputs=inputs, outputs=outputs, name='VehicleAgent')
-        model._make_predict_function() # force graph creation on main thread https://stackoverflow.com/questions/46725323/keras-tensorflow-exception-while-predicting-from-multiple-threads/46757715#46757715
-        self.model = model
-
-    def __init__(self):
-        self.create_model()
+    def __init__(self, max_steps = 1000):
         self.step_callback = None
-    
-    def evaluate_model(self, observations):
-        return [self.model.predict(np.array([observation,]))[0] for observation in observations] # model.predict(np.array([observation,]))[0] :: expects ndarray, not array, and outputs ndarray
+        self.max_steps = max_steps
+        self.create_weights()
+
+    def create_weights(self):
+        model = Individual.create_model()
+        self.weights = model.get_weights()
+
+    @staticmethod
+    def create_model():
+        import keras
+        inputs = keras.Input(shape=(44,)) #=env.observation_space.shape
+        x = keras.layers.Dense(64, activation='relu')(inputs)
+        outputs = keras.layers.Dense(2, activation='relu')(x)
+        model = keras.Model(inputs=inputs, outputs=outputs, name='VehicleAgent')
+        model._make_predict_function() # force graph creation on main thread https://stackoverflow.com/questions/46725323/keras-tensorflow-exception-while-predicting-from-multiple-threads/46757715#46757715
+        return model
 
     def mutate(self, alpha):
-        weights = self.model.get_weights()
-        for layer in range(0, weights.__len__(), 2): # step of 2 to skip the biases
-            for row in range(0, weights[layer].__len__()):
-                for col in range(0, weights[layer][row].__len__()):
-                    weights[layer][row][col] = np.random.normal(weights[layer][row][col], alpha)
-        self.model.set_weights(weights)
+        for layer in range(0, self.weights.__len__(), 2): # step of 2 to skip the biases
+            for row in range(0, self.weights[layer].__len__()):
+                for col in range(0, self.weights[layer][row].__len__()):
+                    self.weights[layer][row][col] = np.random.normal(self.weights[layer][row][col], alpha)
         return self
 
-    def clone(self):
-        clone = Individual()
-        clone.model.set_weights(self.model.get_weights())
-        return clone
+    def experience_env(self, env):
+        model = Individual.create_model()
+        model.set_weights(self.weights)
 
-    def experience_env(self, env, max_steps):
         self.fitness = 0
         self.rewards = None
         self.stepcount = 0
         self.starttime = timer()
         observations = env.reset()
         while True:
-            actions = self.evaluate_model(observations)
+            actions = [model.predict(np.array([observation,]))[0] for observation in observations] # model.predict(np.array([observation,]))[0] :: expects ndarray, not array, and outputs ndarray
             observations, rewards, dones, infos = env.step(actions)
             
             rewards = np.reshape(np.array(rewards),(len(rewards),1))
@@ -62,7 +61,7 @@ class Individual:
                 self.fitness = -1
                 break
 
-            if(self.stepcount > max_steps):
+            if(self.stepcount > self.max_steps):
                 break
 
         if self.step_callback is not None:
