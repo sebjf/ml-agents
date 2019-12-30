@@ -1,12 +1,16 @@
 import numpy as np
 import gym
+import random
+import copy
 from timeit import default_timer as timer
 
 class Individual:
-    def __init__(self, max_steps = 1000):
+    def __init__(self, max_steps = 1000, weights = None):
         self.step_callback = None
         self.max_steps = max_steps
-        self.create_weights()
+        self.weights = weights
+        if self.weights is None:
+            self.create_weights()
 
     def create_weights(self):
         model = Individual.create_model()
@@ -28,6 +32,21 @@ class Individual:
                 for col in range(0, self.weights[layer][row].__len__()):
                     self.weights[layer][row][col] = np.random.normal(self.weights[layer][row][col], alpha)
         return self
+
+    def crossover(self, other, params=(0.5, 0.25)):
+        for layer in range(0, self.weights.__len__(), 2): # step of 2 to skip the biases
+            for row in range(0, self.weights[layer].__len__()):
+                for col in range(0, self.weights[layer][row].__len__()):
+                    if(random.random() > params[0]):
+                        a = random.gauss(0.5, params[1])
+                        self.weights[layer][row][col] = a * self.weights[layer][row][col] + (1 - a) * other.weights[layer][row][col]
+        return self
+
+    def clone(self):
+        clone = Individual()
+        clone.max_steps = self.max_steps
+        clone.weights = copy.deepcopy(self.weights)
+        return clone
 
     def experience_env(self, env):
         model = Individual.create_model()

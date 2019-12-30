@@ -41,6 +41,7 @@ class EnvManager:
         self.workerq.join() # wait for all unity environments to connect before proceeding
 
     def test_generation(self, generation):
+        self.items.clear()
         for g in generation:
             self.test_individual(g)
 
@@ -70,13 +71,12 @@ class EnvManager:
         self.results.put(None)
         self.resultsthread.join()
 
-    def __init__(self, environment_filename, num_workers, max_steps):
+    def __init__(self, environment_filename, num_workers):
         self.manager = Manager()
         self.q = self.manager.Queue()
         self.results = self.manager.Queue()
         self.items = {}
         self.num_workers = num_workers
-        self.max_steps = max_steps
         self.environment_filename = environment_filename
         self.counter = 0
         self.resultsthread = threading.Thread(target=self.results_worker)
