@@ -1,9 +1,12 @@
 
 if __name__ == '__main__':    
 
+    import signal
+    import sys
     from individual import Individual
     from env_manager import EnvManager
     from instrumentation import PlotManager
+
 
     maxSteps = 500
     counter = 0
@@ -23,7 +26,10 @@ if __name__ == '__main__':
 
     for gid in range(0,5):
         envmanager.test_generation(generation)
-        envmanager.wait()
+        try:
+            envmanager.wait()
+        except KeyboardInterrupt: # handle CTRL+C
+            break
 
         generation.sort(key=lambda x: x.fitness, reverse=True)
 
@@ -32,6 +38,8 @@ if __name__ == '__main__':
 
         for i in range(1,len(generation)):
             generation[i].mutate(0.25)
+
+    print("Done")
 
     envmanager.close()
     plots.close()
