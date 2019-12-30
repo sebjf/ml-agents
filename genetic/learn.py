@@ -13,17 +13,17 @@ if __name__ == '__main__':
 
     params = LearningParameters()
     params.s = 2 # linear ranking selection value
-    params.populationsize = 8
+    params.populationsize = 50
     params.mutationsize = 0.5
-    params.generations = 4
+    params.generations = 50
 
     generation = []
 
     for _ in range(0,params.populationsize):
         generation.append(Individual(max_steps=maxSteps).mutate(0.5))
 
-    #envmanager = EnvManager("envs/Windows/PoD.exe", 8)
-    envmanager = EnvManager(None, 1)
+    envmanager = EnvManager("envs/Windows/PoD.exe", 8)
+    #envmanager = EnvManager(None, 1)
     envmanager.start_workers()
 
     plots = PlotManager()
