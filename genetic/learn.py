@@ -12,18 +12,19 @@ if __name__ == '__main__':
         pass
 
     params = LearningParameters()
-    params.s = 2 # linear ranking selection value
-    params.populationsize = 50
-    params.mutationsize = 0.5
-    params.generations = 50
+    params.s = 2                # linear ranking selection value
+    params.populationsize = 5  
+    params.mutationsize = 0.2   # std deviation of normal distribution used to mutate a weight
+    params.generations = 50     # how long to run for
+    params.crossoversize = 0.5  # std deviation of normal distribution determining the weighting between two weights during crossover
 
     generation = []
 
     for _ in range(0,params.populationsize):
-        generation.append(Individual(max_steps=maxSteps).mutate(0.5))
+        generation.append(Individual(max_steps=maxSteps).mutate(0.5)) # initial mutation is larger
 
-    envmanager = EnvManager("envs/Windows/PoD.exe", 8)
-    #envmanager = EnvManager(None, 1)
+    #envmanager = EnvManager("envs/Windows/PoD.exe", 8)
+    envmanager = EnvManager(None, 1)
     envmanager.start_workers()
 
     plots = PlotManager()
@@ -57,9 +58,15 @@ if __name__ == '__main__':
             for _ in range(0,round(params.populationsize * individual.selectionprobability)):
                 parents.append(individual.clone())
 
+        # binary reproduction with elitism and futher mutation
+
         generation = parents[0:params.populationsize]
+
         for i in range(1,len(generation)):
-            generation[i].mutate(params.mutationsize) # asexual reproduction with elitism
+            generation[i].crossover(generation[(i + 1) % len(generation)],params.crossoversize)
+        
+        for i in range(1,len(generation)):
+            generation[i].mutate(params.mutationsize) 
 
     print("Done")
 

@@ -33,19 +33,18 @@ class Individual:
                     self.weights[layer][row][col] = np.random.normal(self.weights[layer][row][col], alpha)
         return self
 
-    def crossover(self, other, params=(0.5, 0.25)):
+    def crossover(self, other, alpha):
         for layer in range(0, self.weights.__len__(), 2): # step of 2 to skip the biases
             for row in range(0, self.weights[layer].__len__()):
                 for col in range(0, self.weights[layer][row].__len__()):
-                    if(random.random() > params[0]):
-                        a = random.gauss(0.5, params[1])
-                        self.weights[layer][row][col] = a * self.weights[layer][row][col] + (1 - a) * other.weights[layer][row][col]
+                    a = random.gauss(0.5, alpha)
+                    self.weights[layer][row][col] = a * self.weights[layer][row][col] + (1 - a) * other.weights[layer][row][col] # blend recombination
         return self
 
     def clone(self):
-        clone = Individual()
-        clone.max_steps = self.max_steps
-        clone.weights = copy.deepcopy(self.weights)
+        clone = Individual(
+            max_steps=self.max_steps,
+            weights=copy.deepcopy(self.weights))
         return clone
 
     def experience_env(self, env):
