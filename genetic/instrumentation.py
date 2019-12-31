@@ -5,11 +5,13 @@ import matplotlib.pyplot as plt
 from tensorboardX import SummaryWriter
 
 class PlotManager:
-    def __init__(self):
+    def __init__(self, tensorboarddir):
         self.threads = []
         self.closing = False
         self.frames = queue.Queue()
-        #self.writer = SummaryWriter() # https://tensorboardx.readthedocs.io/en/latest/tutorial.html#what-is-tensorboard-x
+        self.writer = None
+        if tensorboarddir is not None:
+            self.writer = SummaryWriter(tensorboarddir) # https://tensorboardx.readthedocs.io/en/latest/tutorial.html#what-is-tensorboard-x
 
     def close(self):
         self.closing = True
@@ -34,6 +36,16 @@ class PlotManager:
         frame.fitness = individual.fitness
         frame.step = individual.stepcount
         self.frames.put(frame)
+
+    def plot_generation_fitness(self, generation, step):
+        if self.writer is not None:
+            self.writer.add_histogram('fitness', [individual.fitness for individual in generation], step)
+
+    def plot_generation_rewards(self, generation, step):
+        if self.writer is not None:
+            for i in range(0, len(generation)):
+                agent_rewards = np.sum(generation[i].rewards, axis=1)
+                self.writer.add_histogram('rewards', agent_rewards, (step * len(generation)) + i)
 
     def begin_worker(self):
         def worker(): # https://stackoverflow.com/questions/18791722/can-you-plot-live-data-in-matplotlib

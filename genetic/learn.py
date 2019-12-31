@@ -6,7 +6,6 @@ if __name__ == '__main__':
     from instrumentation import PlotManager
 
     maxSteps = 500
-    logdir = "summariesga/run1/"
 
     class LearningParameters:
         pass
@@ -27,7 +26,7 @@ if __name__ == '__main__':
     envmanager = EnvManager(None, 1)
     envmanager.start_workers()
 
-    plots = PlotManager()
+    plots = PlotManager(tensorboarddir='summaries/ga1')
     #plots.begin_worker()
     #plots.instrument_individuals(generation)
 
@@ -52,6 +51,9 @@ if __name__ == '__main__':
 
         for individual in generation:
             print("Fitness (" + str(gid) + "): " + str(individual.fitness) + " " + "Selection: " + str(individual.selectionprobability) + " " + "Elapsed: " + str(individual.endtime-individual.starttime))
+
+        plots.plot_generation_fitness(generation, gid)
+        plots.plot_generation_rewards(generation, gid)
 
         parents = []
         for individual in generation:
