@@ -20,9 +20,10 @@ class Individual:
     def create_model():
         import keras
         keras.backend.clear_session()
-        inputs = keras.Input(shape=(44,)) #=env.observation_space.shape
+        inputs = keras.Input(shape=(44,), name="vector_observation") # match the input in TensorNames.cs
         x = keras.layers.Dense(64, activation='relu')(inputs)
-        outputs = keras.layers.Dense(2, activation='relu')(x)
+        x = keras.layers.Dense(2, activation='relu')(x)
+        outputs = x
         model = keras.Model(inputs=inputs, outputs=outputs, name='VehicleAgent')
         model._make_predict_function() # force graph creation on main thread https://stackoverflow.com/questions/46725323/keras-tensorflow-exception-while-predicting-from-multiple-threads/46757715#46757715
         return model
@@ -56,6 +57,28 @@ class Individual:
         
         model = Individual.create_model()
         model.set_weights(self.weights)
+        
+        # add some variables to match tf2bc api
+        tf.Variable(
+            1,
+            name="is_continuous_control",
+            trainable=False,
+            dtype=tf.int32,
+        )
+        tf.Variable(
+            2,
+            name="version_number",
+            trainable=False,
+            dtype=tf.int32,
+        )
+        tf.Variable(0, name="memory_size", trainable=False, dtype=tf.int32)
+        tf.Variable(
+            2,
+            name="action_output_shape",
+            trainable=False,
+            dtype=tf.int32,
+        )
+        
         graph = tf.get_default_graph()
         graph_def = graph.as_graph_def()
         session = keras.backend.get_session()
