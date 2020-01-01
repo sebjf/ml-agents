@@ -19,6 +19,7 @@ class Individual:
     @staticmethod
     def create_model():
         import keras
+        keras.backend.clear_session()
         inputs = keras.Input(shape=(44,)) #=env.observation_space.shape
         x = keras.layers.Dense(64, activation='relu')(inputs)
         outputs = keras.layers.Dense(2, activation='relu')(x)
@@ -46,6 +47,37 @@ class Individual:
             max_steps=self.max_steps,
             weights=copy.deepcopy(self.weights))
         return clone
+
+    def save(self, filename):
+        import keras
+        import tensorflow as tf
+        from tensorflow.python.framework import graph_util
+        from tensorflow.python.platform import gfile
+        
+        model = Individual.create_model()
+        model.set_weights(self.weights)
+        graph = tf.get_default_graph()
+        graph_def = graph.as_graph_def()
+        session = keras.backend.get_session()
+        output_graph_def = graph_util.convert_variables_to_constants(
+            session, graph_def, [node.op.name for node in model.outputs]   # https://stackoverflow.com/questions/40028175/
+        )
+        frozen_graph_def_path = filename + "/frozen_graph_def.pb"
+
+        import os
+        import errno
+        if not os.path.exists(os.path.dirname(frozen_graph_def_path)):  # https://stackoverflow.com/questions/12517451/
+            try:
+                os.makedirs(os.path.dirname(frozen_graph_def_path))
+            except OSError as exc: # Guard against race condition
+                if exc.errno != errno.EEXIST:
+                    raise
+
+        with gfile.GFile(frozen_graph_def_path, "wb") as f:
+            f.write(output_graph_def.SerializeToString())
+        
+        from mlagents.trainers import tensorflow_to_barracuda as tf2bc
+        tf2bc.convert(frozen_graph_def_path, frozen_graph_def_path + ".nn")
 
     def experience_env(self, env):
         model = Individual.create_model()

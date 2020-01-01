@@ -30,6 +30,7 @@ if __name__ == '__main__':
     #plots.begin_worker()
     #plots.instrument_individuals(generation)
 
+    bestIndividual = None
 
     for gid in range(0,params.generations):
 
@@ -54,6 +55,7 @@ if __name__ == '__main__':
 
         plots.plot_generation_fitness(generation, gid)
         plots.plot_generation_rewards(generation, gid)
+        plots.flush()
 
         parents = []
         for individual in generation:
@@ -64,6 +66,8 @@ if __name__ == '__main__':
 
         generation = parents[0:params.populationsize]
 
+        bestIndividual = generation[0]
+
         for i in range(1,len(generation)):
             generation[i].crossover(generation[(i + 1) % len(generation)],params.crossoversize)
         
@@ -71,6 +75,9 @@ if __name__ == '__main__':
             generation[i].mutate(params.mutationsize) 
 
     print("Done")
+
+    if bestIndividual is not None:
+        bestIndividual.save("models/ga1/pb")
 
     envmanager.close()
     plots.close()
