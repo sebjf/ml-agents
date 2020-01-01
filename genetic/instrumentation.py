@@ -47,6 +47,10 @@ class PlotManager:
                 agent_rewards = np.sum(generation[i].rewards, axis=1)
                 self.writer.add_histogram('rewards', agent_rewards, (step * len(generation)) + i)
 
+    def flush(self):
+        if self.writer is not None:
+            self.writer.flush()
+
     def begin_worker(self):
         def worker(): # https://stackoverflow.com/questions/18791722/can-you-plot-live-data-in-matplotlib
             plt.figure()
