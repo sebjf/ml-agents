@@ -49,6 +49,10 @@ class Individual:
             weights=copy.deepcopy(self.weights))
         return clone
 
+    def load(self, filename):
+        import pickle
+        self.weights = pickle.load(open(filename + "/weights.pickle", "rb"))
+
     def save(self, filename):
         import keras
         import tensorflow as tf
@@ -101,6 +105,9 @@ class Individual:
         
         from mlagents.trainers import tensorflow_to_barracuda as tf2bc
         tf2bc.convert(frozen_graph_def_path, frozen_graph_def_path + ".nn")
+
+        import pickle
+        pickle.dump(self.weights, open(filename + "/weights.pickle", "wb" ))
 
     def experience_env(self, env):
         model = Individual.create_model()
