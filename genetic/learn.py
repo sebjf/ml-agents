@@ -91,7 +91,7 @@ def main():
 
 if __name__ == '__main__':
     import sys
-    if sys.argv[1] is not None:
+    if len(sys.argv) > 1:
         globals()[sys.argv[1]]()
     else:
         main()
