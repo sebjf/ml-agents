@@ -1,12 +1,19 @@
+from individual import Individual
+from env_manager import EnvManager
+from instrumentation import PlotManager
 
-if __name__ == '__main__':    
+maxSteps = 500
 
-    from individual import Individual
-    from env_manager import EnvManager
-    from instrumentation import PlotManager
+def control():
+    envmanager = EnvManager(None, 1)
+    envmanager.start_workers()
+    individual = Individual(max_steps=10000)
+    individual.load('models/ga')
+    while True:
+        envmanager.test_individual(individual)
+        envmanager.wait()
 
-    maxSteps = 500
-
+def main():
     class LearningParameters:
         pass
 
@@ -81,3 +88,10 @@ if __name__ == '__main__':
 
     envmanager.close()
     plots.close()
+
+if __name__ == '__main__':
+    import sys
+    if sys.argv[1] is not None:
+        globals()[sys.argv[1]]()
+    else:
+        main()
