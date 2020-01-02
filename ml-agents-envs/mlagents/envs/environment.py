@@ -53,7 +53,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         docker_training: bool = False,
         editor_training: bool = False,
         no_graphics: bool = False,
-        timeout_wait: int = 30,
+        timeout_wait: int = 600,
         args: Optional[List[str]] = None,
     ):
         """
