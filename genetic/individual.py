@@ -20,8 +20,8 @@ class Individual:
     def create_model():
         import keras
         keras.backend.clear_session()
-        inputs = keras.Input(shape=(44,), name="vector_observation") # match the input in TensorNames.cs
-        x = keras.layers.Dense(132, activation='relu')(inputs)
+        inputs = keras.Input(shape=(54,), name="vector_observation") # match the input in TensorNames.cs
+        x = keras.layers.Dense(162, activation='relu')(inputs)
         x = keras.layers.Dense(2, activation=None)(x)
         outputs = x
         model = keras.Model(inputs=inputs, outputs=outputs, name='VehicleAgent')
