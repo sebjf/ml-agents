@@ -132,7 +132,8 @@ class Individual:
             self.stepcount += 1
 
             if self.rewards.ndim > 1:
-                self.fitness = sum(sum(self.rewards))
+                agent_rewards = np.sum(self.rewards, axis=1) # the total rewards for each agent in the multiagent set
+                self.fitness = np.mean(agent_rewards)
 
             if self.step_callback is not None:
                 self.step_callback(self)
