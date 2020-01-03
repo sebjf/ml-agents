@@ -22,8 +22,7 @@ class Individual:
         keras.backend.clear_session()
         inputs = keras.Input(shape=(44,), name="vector_observation") # match the input in TensorNames.cs
         x = keras.layers.Dense(132, activation='relu')(inputs)
-        x = keras.layers.Dense(132, activation='relu')(inputs)
-        x = keras.layers.Dense(2, activation='relu')(x)
+        x = keras.layers.Dense(2, activation=None)(x)
         outputs = x
         model = keras.Model(inputs=inputs, outputs=outputs, name='VehicleAgent')
         model._make_predict_function() # force graph creation on main thread https://stackoverflow.com/questions/46725323/keras-tensorflow-exception-while-predicting-from-multiple-threads/46757715#46757715
