@@ -21,10 +21,8 @@ class Individual:
         import keras
         keras.backend.clear_session()
         inputs = keras.Input(shape=(54,), name="vector_observation") # match the input in TensorNames.cs
-        x = keras.layers.Dense(162, activation='relu')(inputs)
-        x = keras.layers.Dense(162, activation='relu')(x)
-        x = keras.layers.Dense(162, activation='relu')(x)
-        x = keras.layers.Dense(2, activation='relu')(x)
+        x = keras.layers.Dense(162, activation='relu', kernel_initializer='zeros')(inputs)
+        x = keras.layers.Dense(2, activation='relu', kernel_initializer='zeros')(x)
         outputs = x
         model = keras.Model(inputs=inputs, outputs=outputs, name='VehicleAgent')
         model._make_predict_function() # force graph creation on main thread https://stackoverflow.com/questions/46725323/keras-tensorflow-exception-while-predicting-from-multiple-threads/46757715#46757715
@@ -141,7 +139,6 @@ class Individual:
                 self.step_callback(self)
 
             if(any(dones)): # agent has crashed. if the nn crashes on any corner it is no good so we can stop right away.
-                self.fitness = -1
                 break
 
             if(self.stepcount > self.max_steps):
