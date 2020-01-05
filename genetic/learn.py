@@ -88,7 +88,7 @@ def main():
             if random.random() > params.mutationrate:
                 individual = random.choice(parents).clone().crossover(random.choice(parents), 0.5)
             else:
-                individual = random.choice(parents).mutate(params.mutationsize)
+                individual = random.choice(parents).clone().mutate(params.mutationsize)
             generation.append(individual)
 
     print("Done")

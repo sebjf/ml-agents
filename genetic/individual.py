@@ -40,8 +40,18 @@ class Individual:
             for row in range(0, self.weights[layer].__len__()):
                 for col in range(0, self.weights[layer][row].__len__()):
                     a = random.gauss(0.5, alpha)
-                    self.weights[layer][row][col] = a * self.weights[layer][row][col] + (1 - a) * other.weights[layer][row][col] # blend recombination
+                    self.weights[layer][row][col] = a * self.weights[layer][row][col] + (1 - a) * other.weights[layer][row][col] # extended-line blend recombination
         return self
+    
+    def crossover_fine(self, other, alpha):
+        for layer in range(0, self.weights.__len__(), 2): # step of 2 to skip the biases
+            for row in range(0, self.weights[layer].__len__()):
+                for col in range(0, self.weights[layer][row].__len__()):
+                    difference = abs(self.weights[layer][row][col] - other.weights[layer][row][col])
+                    a = random.gauss(0.5, alpha)
+                    self.weights[layer][row][col] = a * self.weights[layer][row][col] + (1 - a) * other.weights[layer][row][col] # extended-line blend recombination
+                    self.weights[layer][row][col] = np.random.normal(self.weights[layer][row][col], difference)
+        return self  
 
     def clone(self):
         clone = Individual(
