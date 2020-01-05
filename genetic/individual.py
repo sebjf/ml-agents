@@ -22,6 +22,8 @@ class Individual:
         keras.backend.clear_session()
         inputs = keras.Input(shape=(54,), name="vector_observation") # match the input in TensorNames.cs
         x = keras.layers.Dense(162, activation='relu')(inputs)
+        x = keras.layers.Dense(162, activation='relu')(x)
+        x = keras.layers.Dense(162, activation='relu')(x)
         x = keras.layers.Dense(2, activation='relu')(x)
         outputs = x
         model = keras.Model(inputs=inputs, outputs=outputs, name='VehicleAgent')
