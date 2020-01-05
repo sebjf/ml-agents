@@ -1,6 +1,7 @@
 from individual import Individual
 from env_manager import EnvManager
 from instrumentation import PlotManager
+import random
 
 maxSteps = 500
 
@@ -8,7 +9,7 @@ def control():
     envmanager = EnvManager(None, 1)
     envmanager.start_workers()
     individual = Individual(max_steps=10000)
-    individual.load('models/ga')
+    individual.load('models/ga/pb')
     while True:
         envmanager.test_individual(individual)
         envmanager.wait()
@@ -18,16 +19,16 @@ def main():
         pass
 
     params = LearningParameters()
-    params.s = 2                # linear ranking selection value
     params.populationsize = 5  
     params.mutationsize = 0.2   # std deviation of normal distribution used to mutate a weight
+    params.mutationrate = 0.1
     params.generations = 50     # how long to run for
     params.crossoversize = 0.5  # std deviation of normal distribution determining the weighting between two weights during crossover
 
     generation = []
 
     for _ in range(0,params.populationsize):
-        generation.append(Individual(max_steps=maxSteps).mutate(0.5)) # initial mutation is larger
+        generation.append(Individual(max_steps=maxSteps).mutate(params.mutationsize)) # initial mutation is larger
 
     #envmanager = EnvManager("envs/Windows/PoD.exe", 8)
     envmanager = EnvManager(None, 1)
@@ -53,8 +54,14 @@ def main():
 
         generation.sort(key=lambda x: x.fitness, reverse=False) # ranking
 
+        K = params.populationsize
+
         for i in range(0,len(generation)):
-            generation[i].selectionprobability = (2 - params.s) / params.populationsize + (2 * i * (params.s - 1)) / (params.populationsize * (params.populationsize - 1))
+            if i <= K / 2:
+                generation[i].selectionprobability = (12 * i) / (5 * K * (K + 2))
+            else:
+                generation[i].selectionprobability = (28 * i) / (5 * K * ((3 * K) + 2))
+
         generation.sort(key=lambda x: x.selectionprobability, reverse=True)
 
         for individual in generation:
@@ -64,22 +71,25 @@ def main():
         plots.plot_generation_rewards(generation, gid)
         plots.flush()
 
+        N = 100
         parents = []
         for individual in generation:
-            for _ in range(0,round(params.populationsize * individual.selectionprobability)):
-                parents.append(individual.clone())
+            for _ in range(0,round(N * K * individual.selectionprobability)):
+                parents.append(individual)
 
-        # binary reproduction with elitism and futher mutation
+        # create the new popualtion. binary reproduction with elitism
 
-        generation = parents[0:params.populationsize]
+        bestIndividual = generation[0].clone()
 
-        bestIndividual = generation[0]
+        generation = []
+        generation.append(bestIndividual)
 
-        for i in range(1,len(generation)):
-            generation[i].crossover(generation[(i + 1) % len(generation)],params.crossoversize)
-        
-        for i in range(1,len(generation)):
-            generation[i].mutate(params.mutationsize) 
+        for i in range(0,K-1):
+            if random.random() > params.mutationrate:
+                individual = random.choice(parents).clone().crossover(random.choice(parents), 0.5)
+            else:
+                individual = random.choice(parents).mutate(params.mutationsize)
+            generation.append(individual)
 
     print("Done")
 
